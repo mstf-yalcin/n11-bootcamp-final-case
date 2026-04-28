@@ -1,6 +1,6 @@
 package com.n11.bootcamp.user_service.entity;
 
-import com.n11.bootcamp.user_service.enums.Role;
+import com.n11.bootcamp.common_lib.auth.enums.Role;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;

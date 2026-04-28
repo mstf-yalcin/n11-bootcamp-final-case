@@ -1,5 +1,6 @@
 package com.n11.bootcamp.user_service.service;
 
+import com.n11.bootcamp.common_lib.auth.enums.Role;
 import com.n11.bootcamp.user_service.dto.internal.RefreshTokenDto;
 import com.n11.bootcamp.user_service.dto.request.AuthRequest;
 import com.n11.bootcamp.user_service.dto.request.RefreshTokenRequest;
@@ -8,7 +9,6 @@ import com.n11.bootcamp.user_service.dto.response.TokenResponse;
 import com.n11.bootcamp.user_service.dto.response.UserResponse;
 import com.n11.bootcamp.user_service.entity.RoleEntity;
 import com.n11.bootcamp.user_service.entity.User;
-import com.n11.bootcamp.user_service.enums.Role;
 import com.n11.bootcamp.user_service.exception.EmailAlreadyExistsException;
 import com.n11.bootcamp.user_service.exception.InvalidTokenException;
 import com.n11.bootcamp.user_service.repository.RoleRepository;

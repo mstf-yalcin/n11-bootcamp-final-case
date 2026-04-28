@@ -1,4 +1,4 @@
-package com.n11.bootcamp.user_service.enums;
+package com.n11.bootcamp.common_lib.auth.enums;
 
 public enum Role {
 

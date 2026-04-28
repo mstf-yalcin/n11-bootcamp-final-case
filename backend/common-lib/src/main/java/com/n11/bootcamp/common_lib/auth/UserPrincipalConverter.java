@@ -1,4 +1,4 @@
-package com.n11.bootcamp.user_service.config;
+package com.n11.bootcamp.common_lib.auth;
 
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;

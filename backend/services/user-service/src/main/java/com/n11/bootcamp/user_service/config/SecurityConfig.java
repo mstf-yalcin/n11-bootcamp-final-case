@@ -1,5 +1,6 @@
 package com.n11.bootcamp.user_service.config;
 
+import com.n11.bootcamp.common_lib.auth.UserPrincipalConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationProvider;

@@ -1,8 +1,8 @@
 package com.n11.bootcamp.user_service;
 
+import com.n11.bootcamp.common_lib.auth.enums.Role;
 import com.n11.bootcamp.user_service.entity.RoleEntity;
 import com.n11.bootcamp.user_service.entity.User;
-import com.n11.bootcamp.user_service.enums.Role;
 import com.n11.bootcamp.user_service.repository.RoleRepository;
 import com.n11.bootcamp.user_service.repository.UserRepository;
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;

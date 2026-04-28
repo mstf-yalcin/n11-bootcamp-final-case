@@ -4,7 +4,7 @@ import com.n11.bootcamp.user_service.dto.request.AuthRequest;
 import com.n11.bootcamp.user_service.dto.request.RefreshTokenRequest;
 import com.n11.bootcamp.user_service.dto.request.RegisterRequest;
 import com.n11.bootcamp.user_service.dto.request.ValidateTokenRequest;
-import com.n11.bootcamp.user_service.dto.response.ApiResponse;
+import com.n11.bootcamp.common_lib.dto.response.ApiResponse;
 import com.n11.bootcamp.user_service.dto.response.TokenResponse;
 import com.n11.bootcamp.user_service.dto.response.UserResponse;
 import com.n11.bootcamp.user_service.service.AuthService;

@@ -1,4 +1,4 @@
-package com.n11.bootcamp.user_service.dto.response;
+package com.n11.bootcamp.common_lib.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 

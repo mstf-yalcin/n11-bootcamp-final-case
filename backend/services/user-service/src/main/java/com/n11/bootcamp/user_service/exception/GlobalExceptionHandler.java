@@ -1,7 +1,7 @@
 package com.n11.bootcamp.user_service.exception;
 
-import com.n11.bootcamp.user_service.dto.response.ApiResponse;
-import com.n11.bootcamp.user_service.dto.response.ErrorDetails;
+import com.n11.bootcamp.common_lib.dto.response.ApiResponse;
+import com.n11.bootcamp.common_lib.dto.response.ErrorDetails;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
