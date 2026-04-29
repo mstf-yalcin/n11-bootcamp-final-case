@@ -1,4 +1,4 @@
-package com.n11.bootcamp.user_service;
+package com.n11.bootcamp;
 
 import com.n11.bootcamp.common_lib.auth.enums.Role;
 import com.n11.bootcamp.user_service.entity.RoleEntity;
