@@ -16,6 +16,7 @@
 	<modules>
 		<module>common-lib</module>
 		<module>services/user-service</module>
+		<module>services/product-service</module>
 		<module>infrastructure/api-gateway</module>
 		<module>infrastructure/config-server</module>
 		<module>infrastructure/discovery-server</module>
