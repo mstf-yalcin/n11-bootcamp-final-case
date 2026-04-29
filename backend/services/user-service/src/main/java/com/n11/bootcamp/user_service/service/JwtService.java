@@ -19,6 +19,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -42,7 +43,7 @@ public class JwtService {
         this.keyId = keyId;
     }
 
-    public String generateToken(String userId, String email, List<String> roles) {
+    public String generateToken(UUID userId, String email, List<String> roles) {
         Instant now = Instant.now();
         Instant exp = now.plus(expireTime, ChronoUnit.MINUTES);
 
@@ -51,7 +52,7 @@ public class JwtService {
                 .issuer(issuer)
                 .issueTime(Date.from(now))
                 .expirationTime(Date.from(exp))
-                .claim("userId", userId)
+                .claim("userId", userId.toString())
                 .claim("roles", roles)
                 .build();
 

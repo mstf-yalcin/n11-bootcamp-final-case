@@ -9,8 +9,8 @@ import com.n11.bootcamp.user_service.dto.response.TokenResponse;
 import com.n11.bootcamp.user_service.dto.response.UserResponse;
 import com.n11.bootcamp.user_service.service.AuthService;
 import jakarta.validation.Valid;
-import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -57,7 +57,7 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<UserResponse>> getUserInfo(Authentication authentication) {
+    public ResponseEntity<ApiResponse<UserResponse>> getUserInfo( Authentication authentication) {
         return ResponseEntity.ok(ApiResponse.success(authService.getUserInfo(authentication.getName()), "User information retrieved"));
     }
 }

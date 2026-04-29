@@ -1,5 +1,6 @@
 package com.n11.bootcamp.user_service.entity;
 
+import com.n11.bootcamp.common_lib.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -9,14 +10,11 @@ import java.time.Instant;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-@Data
-@EqualsAndHashCode(of = "token")
+@Getter
+@Setter
+@EqualsAndHashCode(of = "token", callSuper = false)
 @Table(name = "refresh_tokens")
-public class RefreshToken {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+public class RefreshToken extends BaseEntity {
 
     private String token;
 

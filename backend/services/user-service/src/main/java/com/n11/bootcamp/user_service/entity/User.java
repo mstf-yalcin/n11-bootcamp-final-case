@@ -1,5 +1,6 @@
 package com.n11.bootcamp.user_service.entity;
 
+import com.n11.bootcamp.common_lib.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
@@ -11,15 +12,13 @@ import java.util.List;
 @Entity
 @NoArgsConstructor
 @AllArgsConstructor
-@Data
+@Getter
+@Setter
 @Builder
+@EqualsAndHashCode(callSuper = true)
 @Table(name = "users")
-@ToString(exclude = "password")
-public class User implements UserDetails {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private String id;
+@ToString(callSuper = true, exclude = "password")
+public class User extends BaseEntity implements UserDetails {
 
     @Column(unique = true, nullable = false)
     private String email;

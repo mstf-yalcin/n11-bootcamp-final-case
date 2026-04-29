@@ -1,22 +1,20 @@
 package com.n11.bootcamp.user_service.entity;
 
 import com.n11.bootcamp.common_lib.auth.enums.Role;
+import com.n11.bootcamp.common_lib.entity.BaseEntity;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.springframework.security.core.GrantedAuthority;
 
 @Entity
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true)
 @Table(name = "roles")
-public class RoleEntity implements GrantedAuthority {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    String id;
+public class RoleEntity extends BaseEntity implements GrantedAuthority {
 
     @Enumerated(EnumType.STRING)
     private Role authority;

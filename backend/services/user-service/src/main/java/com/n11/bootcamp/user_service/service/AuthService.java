@@ -11,6 +11,7 @@ import com.n11.bootcamp.user_service.entity.RoleEntity;
 import com.n11.bootcamp.user_service.entity.User;
 import com.n11.bootcamp.user_service.exception.EmailAlreadyExistsException;
 import com.n11.bootcamp.user_service.exception.InvalidTokenException;
+import com.n11.bootcamp.user_service.exception.UserNotFoundException;
 import com.n11.bootcamp.user_service.repository.RoleRepository;
 import com.n11.bootcamp.user_service.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -110,7 +111,7 @@ public class AuthService {
 
     public UserResponse getUserInfo(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found: " + email));
+                .orElseThrow(() -> new UserNotFoundException(email));
 
         return new UserResponse(
                 user.getId(),
