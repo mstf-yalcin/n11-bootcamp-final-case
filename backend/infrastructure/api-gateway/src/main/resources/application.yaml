@@ -64,6 +64,26 @@ spring:
                       factor: 2
                       basedOnPreviousValue: false
 
+            - id: order-service
+              uri: lb://order-service
+              predicates:
+                - Path=/api/v1/orders/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: order-service
+                    fallbackUri: forward:/fallback/order
+                - name: Retry
+                  args:
+                    retries: 3
+                    statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                    methods: GET
+                    backoff:
+                      firstBackoff: 100ms
+                      maxBackoff: 1000ms
+                      factor: 2
+                      basedOnPreviousValue: false
+
   config:
     import: optional:configserver:http://localhost:8888/
 
@@ -103,6 +123,11 @@ resilience4j:
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 3
+      order-service:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 5
   timelimiter:
     instances:
       user-service:
@@ -111,3 +136,5 @@ resilience4j:
         timeoutDuration: 5s
       cart-service:
         timeoutDuration: 5s
+      order-service:
+        timeoutDuration: 10s

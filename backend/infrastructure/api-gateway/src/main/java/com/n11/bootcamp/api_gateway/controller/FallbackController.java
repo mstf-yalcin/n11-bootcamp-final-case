@@ -26,6 +26,11 @@ public class FallbackController {
         return fallback("cart-service");
     }
 
+    @RequestMapping("/order")
+    public ResponseEntity<Map<String, Object>> orderFallback() {
+        return fallback("order-service");
+    }
+
     private ResponseEntity<Map<String, Object>> fallback(String service) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(Map.of(
