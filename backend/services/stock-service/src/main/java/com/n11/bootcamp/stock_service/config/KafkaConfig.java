@@ -75,14 +75,23 @@ public class KafkaConfig {
         backOff.setMaxAttempts(3);
 
         DefaultErrorHandler handler = new DefaultErrorHandler((record, exception) -> {
-            log.error("All retries exhausted for order event: topic={}, offset={}, exception={}",
-                    record.topic(), record.offset(), exception.getMessage());
-            try {
-                OrderCreatedPayload payload = objectMapper.readValue(record.value().toString(), OrderCreatedPayload.class);
-                stockService.publishInventoryFailed(payload.orderId(), payload.correlationId());
-                log.error("Published INVENTORY_FAILED for orderId={}", payload.orderId());
-            } catch (Exception e) {
-                log.error("Recoverer failed to publish INVENTORY_FAILED for offset={}", record.offset(), e);
+            String eventType = extractHeader(record, "eventType");
+            String correlationId = extractHeader(record, "correlationId");
+            log.error("All retries exhausted for order event: eventType={}, topic={}, offset={}, exception={}",
+                    eventType, record.topic(), record.offset(), exception.getMessage());
+
+            if (EventType.ORDER_CREATED.name().equals(eventType)) {
+                try {
+                    OrderCreatedPayload payload = objectMapper.readValue(
+                            record.value().toString(), OrderCreatedPayload.class);
+                    stockService.publishStockFailed(payload.orderId(), correlationId);
+                    log.error("Published STOCK_FAILED for orderId={}", payload.orderId());
+                } catch (Exception e) {
+                    log.error("Recoverer failed to publish STOCK_FAILED for offset={}", record.offset(), e);
+                }
+            } else {
+                log.error("Manual intervention required: order event {} stuck after retries (offset={}, key={})",
+                        eventType, record.offset(), record.key());
             }
         }, backOff);
 
@@ -118,25 +127,25 @@ public class KafkaConfig {
     }
 
     @Bean
-    public RecordFilterStrategy<String, String> orderCreatedFilter() {
-        return record -> !isEventType(record, EventType.ORDER_CREATED);
+    public RecordFilterStrategy<String, String> orderEventFilter() {
+        return record -> {
+            String eventType = extractHeader(record, "eventType");
+            return !EventType.ORDER_CREATED.name().equals(eventType)
+                    && !EventType.ORDER_CANCELLED.name().equals(eventType);
+        };
     }
 
     @Bean
     public RecordFilterStrategy<String, String> paymentEventFilter() {
         return record -> {
-            String eventType = extractEventType(record);
+            String eventType = extractHeader(record, "eventType");
             return !EventType.PAYMENT_COMPLETED.name().equals(eventType)
                     && !EventType.PAYMENT_FAILED.name().equals(eventType);
         };
     }
 
-    private boolean isEventType(ConsumerRecord<String, String> record, EventType eventType) {
-        return eventType.name().equals(extractEventType(record));
-    }
-
-    private String extractEventType(ConsumerRecord<String, String> record) {
-        var header = record.headers().lastHeader("eventType");
-        return header != null ? new String(header.value()) : "";
+    private String extractHeader(ConsumerRecord<?, ?> record, String headerName) {
+        var header = record.headers().lastHeader(headerName);
+        return header != null ? new String(header.value()) : null;
     }
 }
