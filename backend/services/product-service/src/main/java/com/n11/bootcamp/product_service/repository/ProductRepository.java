@@ -22,6 +22,9 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     List<Product> findAllByIdInAndIsActiveTrue(List<UUID> ids);
 
+    @Query("SELECT p.id FROM Product p WHERE p.id IN :ids AND p.isActive = true")
+    List<UUID> findExistingIdsByIdIn(@Param("ids") List<UUID> ids);
+
     @Query("""
             SELECT p FROM Product p
             WHERE p.isActive = true

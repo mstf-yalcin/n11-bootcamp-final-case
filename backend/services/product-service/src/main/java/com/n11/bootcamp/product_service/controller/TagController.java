@@ -20,11 +20,14 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/tags")
-@RequiredArgsConstructor
 @Tag(name = "Tags", description = "Tag management endpoints")
 public class TagController {
 
     private final TagService tagService;
+
+    public TagController(TagService tagService) {
+        this.tagService = tagService;
+    }
 
     @GetMapping
     @Operation(summary = "List all active tags")

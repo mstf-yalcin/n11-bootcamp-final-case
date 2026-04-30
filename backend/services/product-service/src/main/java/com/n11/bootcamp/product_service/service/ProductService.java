@@ -28,7 +28,6 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ProductService {
 
@@ -36,6 +35,13 @@ public class ProductService {
     private final CategoryRepository categoryRepository;
     private final TagRepository tagRepository;
     private final ProductMapper productMapper;
+
+    public ProductService(ProductRepository productRepository, CategoryRepository categoryRepository, TagRepository tagRepository, ProductMapper productMapper) {
+        this.productRepository = productRepository;
+        this.categoryRepository = categoryRepository;
+        this.tagRepository = tagRepository;
+        this.productMapper = productMapper;
+    }
 
     public Page<ProductResponse> getProducts(UUID categoryId, BigDecimal minPrice, BigDecimal maxPrice,
                                              String search, Pageable pageable) {
@@ -68,6 +74,11 @@ public class ProductService {
                 .stream()
                 .map(productMapper::toResponse)
                 .toList();
+    }
+
+    public List<UUID> getExistingProductIds(List<UUID> ids) {
+        log.info("Checking existing products: ids={}", ids);
+        return productRepository.findExistingIdsByIdIn(ids);
     }
 
     @Transactional

@@ -16,12 +16,16 @@ import java.util.List;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class TagService {
 
     private final TagRepository tagRepository;
     private final TagMapper tagMapper;
+
+    public TagService(TagRepository tagRepository, TagMapper tagMapper) {
+        this.tagRepository = tagRepository;
+        this.tagMapper = tagMapper;
+    }
 
     public List<TagResponse> getAllTags() {
         log.info("Listing all active tags");

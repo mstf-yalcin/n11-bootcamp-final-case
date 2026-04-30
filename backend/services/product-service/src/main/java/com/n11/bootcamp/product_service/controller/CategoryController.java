@@ -25,11 +25,14 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/categories")
-@RequiredArgsConstructor
 @Tag(name = "Categories", description = "Category management endpoints")
 public class CategoryController {
 
     private final CategoryService categoryService;
+
+    public CategoryController(CategoryService categoryService) {
+        this.categoryService = categoryService;
+    }
 
     @GetMapping
     @Operation(summary = "List all active categories")

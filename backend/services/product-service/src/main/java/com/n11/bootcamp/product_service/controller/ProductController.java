@@ -31,11 +31,14 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/products")
-@RequiredArgsConstructor
 @Tag(name = "Products", description = "Product management endpoints")
 public class ProductController {
 
     private final ProductService productService;
+
+    public ProductController(ProductService productService) {
+        this.productService = productService;
+    }
 
     @GetMapping
     @Operation(summary = "List products with optional filtering and pagination")
@@ -54,6 +57,13 @@ public class ProductController {
     public ResponseEntity<ApiResponse<List<ProductResponse>>> getProductsByIds(
             @RequestParam List<UUID> ids) {
         return ResponseEntity.ok(ApiResponse.success(productService.getProductsByIds(ids), "Products fetched"));
+    }
+
+    @GetMapping("/exists")
+    @Operation(summary = "Check which product IDs exist and are active (used by cart-service for validation)")
+    public ResponseEntity<ApiResponse<List<UUID>>> getExistingProductIds(
+            @RequestParam List<UUID> ids) {
+        return ResponseEntity.ok(ApiResponse.success(productService.getExistingProductIds(ids), "Existing product IDs fetched"));
     }
 
     @GetMapping("/{slug}")
