@@ -9,9 +9,9 @@ public enum EventType {
     ORDER_SHIPPED,
     ORDER_DELIVERED,
 
-    // Inventory events
-    INVENTORY_RESERVED,
-    INVENTORY_FAILED,
+    // Stock events
+    STOCK_RESERVED,
+    STOCK_FAILED,
 
     // Payment events
     PAYMENT_COMPLETED,

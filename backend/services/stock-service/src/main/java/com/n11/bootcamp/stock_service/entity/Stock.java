@@ -17,9 +17,9 @@ import java.util.UUID;
 
 @Entity
 @Table(
-        name = "inventories",
+        name = "stocks",
         indexes = {
-                @Index(name = "idx_inventories_product_id", columnList = "product_id", unique = true)
+                @Index(name = "idx_stocks_product_id", columnList = "product_id", unique = true)
         }
 )
 @Getter
@@ -29,7 +29,7 @@ import java.util.UUID;
 @Builder
 @EqualsAndHashCode(callSuper = true)
 @ToString(callSuper = true)
-public class Inventory extends BaseEntity {
+public class Stock extends BaseEntity {
 
     @Column(name = "product_id", nullable = false, unique = true)
     private UUID productId;

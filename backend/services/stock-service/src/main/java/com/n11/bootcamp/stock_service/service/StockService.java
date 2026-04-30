@@ -6,13 +6,16 @@ import com.n11.bootcamp.stock_service.dto.request.CreateStockRequest;
 import com.n11.bootcamp.stock_service.dto.request.UpdateStockRequest;
 import com.n11.bootcamp.stock_service.dto.response.ReservationResponse;
 import com.n11.bootcamp.stock_service.dto.response.StockResponse;
-import com.n11.bootcamp.stock_service.entity.Inventory;
 import com.n11.bootcamp.stock_service.entity.OutboxEvent;
 import com.n11.bootcamp.stock_service.entity.ReservationStatus;
+import com.n11.bootcamp.stock_service.entity.Stock;
 import com.n11.bootcamp.stock_service.entity.StockReservation;
+import com.n11.bootcamp.common_lib.event.AggregateType;
 import com.n11.bootcamp.common_lib.event.EventType;
 import com.n11.bootcamp.common_lib.event.order.OrderCreatedPayload;
 import com.n11.bootcamp.common_lib.event.order.OrderEventItem;
+import com.n11.bootcamp.common_lib.event.stock.StockFailedPayload;
+import com.n11.bootcamp.common_lib.event.stock.StockReservedPayload;
 import com.n11.bootcamp.stock_service.exception.InvalidStockQuantityException;
 import com.n11.bootcamp.stock_service.exception.StockAlreadyExistsException;
 import com.n11.bootcamp.stock_service.exception.StockNotFoundException;
@@ -31,6 +34,8 @@ import java.util.stream.Collectors;
 @Service
 @Transactional(readOnly = true)
 public class StockService {
+
+    private static final String AGGREGATE_TYPE = AggregateType.STOCK;
 
     private final StockRepository stockRepository;
     private final StockReservationRepository reservationRepository;
@@ -54,9 +59,9 @@ public class StockService {
     }
 
     public StockResponse getByProductId(UUID productId) {
-        Inventory inventory = stockRepository.findByProductIdAndIsActiveTrue(productId)
+        Stock stock = stockRepository.findByProductIdAndIsActiveTrue(productId)
                 .orElseThrow(() -> new StockNotFoundException(productId));
-        return stockMapper.toResponse(inventory);
+        return stockMapper.toResponse(stock);
     }
 
     public List<ReservationResponse> getReservationsByOrderId(UUID orderId) {
@@ -72,12 +77,12 @@ public class StockService {
         if (stockRepository.existsByProductIdAndIsActiveTrue(request.productId())) {
             throw new StockAlreadyExistsException(request.productId());
         }
-        Inventory inventory = Inventory.builder()
+        Stock stock = Stock.builder()
                 .productId(request.productId())
                 .quantity(request.quantity())
                 .reserved(0)
                 .build();
-        Inventory saved = stockRepository.save(inventory);
+        Stock saved = stockRepository.save(stock);
         log.info("Stock created: id={}, productId={}", saved.getId(), saved.getProductId());
         return stockMapper.toResponse(saved);
     }
@@ -85,13 +90,13 @@ public class StockService {
     @Transactional
     public StockResponse updateStock(UUID productId, UpdateStockRequest request) {
         log.info("Updating stock: productId={}, newQuantity={}", productId, request.quantity());
-        Inventory inventory = stockRepository.findByProductIdAndIsActiveTrue(productId)
+        Stock stock = stockRepository.findByProductIdAndIsActiveTrue(productId)
                 .orElseThrow(() -> new StockNotFoundException(productId));
-        if (request.quantity() < inventory.getReserved()) {
-            throw new InvalidStockQuantityException(productId, request.quantity(), inventory.getReserved());
+        if (request.quantity() < stock.getReserved()) {
+            throw new InvalidStockQuantityException(productId, request.quantity(), stock.getReserved());
         }
-        inventory.setQuantity(request.quantity());
-        Inventory saved = stockRepository.save(inventory);
+        stock.setQuantity(request.quantity());
+        Stock saved = stockRepository.save(stock);
         log.info("Stock updated: productId={}, quantity={}", productId, saved.getQuantity());
         return stockMapper.toResponse(saved);
     }
@@ -99,15 +104,15 @@ public class StockService {
     @Transactional
     public void deleteStock(UUID productId) {
         log.info("Deleting stock (soft): productId={}", productId);
-        Inventory inventory = stockRepository.findByProductIdAndIsActiveTrue(productId)
+        Stock stock = stockRepository.findByProductIdAndIsActiveTrue(productId)
                 .orElseThrow(() -> new StockNotFoundException(productId));
-        inventory.setActive(false);
-        stockRepository.save(inventory);
+        stock.setActive(false);
+        stockRepository.save(stock);
     }
 
     @Transactional
-    public void reserveStock(OrderCreatedPayload order) {
-        log.info("Reserving stock for orderId={}, correlationId={}", order.orderId(), order.correlationId());
+    public void reserveStock(OrderCreatedPayload order, String correlationId) {
+        log.info("Reserving stock for orderId={}, correlationId={}", order.orderId(), correlationId);
 
         //TODO: change processed_events table
         if (reservationRepository.existsByOrderId(order.orderId())) {
@@ -119,21 +124,21 @@ public class StockService {
                 .map(OrderEventItem::productId)
                 .toList();
 
-        Map<UUID, Inventory> inventoryMap = stockRepository.findAllByProductIdInForUpdate(productIds)
+        Map<UUID, Stock> stockMap = stockRepository.findAllByProductIdInForUpdate(productIds)
                 .stream()
-                .collect(Collectors.toMap(Inventory::getProductId, i -> i));
+                .collect(Collectors.toMap(Stock::getProductId, s -> s));
 
         UUID failedProductId = null;
         int requestedQty = 0;
         int availableQty = 0;
 
         for (OrderEventItem item : order.items()) {
-            Inventory inventory = inventoryMap.get(item.productId());
+            Stock stock = stockMap.get(item.productId());
 
-            if (inventory == null || inventory.getAvailable() < item.quantity()) {
+            if (stock == null || stock.getAvailable() < item.quantity()) {
                 failedProductId = item.productId();
                 requestedQty = item.quantity();
-                availableQty = inventory != null ? inventory.getAvailable() : 0;
+                availableQty = stock != null ? stock.getAvailable() : 0;
                 log.warn("Insufficient stock: productId={}, requested={}, available={}",
                         item.productId(), item.quantity(), availableQty);
                 break;
@@ -142,36 +147,36 @@ public class StockService {
 
         if (failedProductId != null) {
             publishOutbox(
-                    EventType.INVENTORY_FAILED,
+                    EventType.STOCK_FAILED,
                     order.orderId().toString(),
-                    buildInventoryFailedPayload(order.orderId(), failedProductId, requestedQty, availableQty, order.correlationId()),
-                    order.correlationId()
+                    new StockFailedPayload(order.orderId(), failedProductId, requestedQty, availableQty),
+                    correlationId
             );
             return;
         }
 
         List<StockReservation> reservations = new ArrayList<>();
         for (OrderEventItem item : order.items()) {
-            Inventory inventory = inventoryMap.get(item.productId());
-            inventory.setReserved(inventory.getReserved() + item.quantity());
-            stockRepository.save(inventory);
+            Stock stock = stockMap.get(item.productId());
+            stock.setReserved(stock.getReserved() + item.quantity());
+            stockRepository.save(stock);
 
             reservations.add(StockReservation.builder()
                     .orderId(order.orderId())
                     .productId(item.productId())
                     .quantity(item.quantity())
                     .status(ReservationStatus.PENDING)
-                    .correlationId(order.correlationId())
+                    .correlationId(correlationId)
                     .build());
         }
 
         reservationRepository.saveAll(reservations);
 
         publishOutbox(
-                EventType.INVENTORY_RESERVED,
+                EventType.STOCK_RESERVED,
                 order.orderId().toString(),
-                buildInventoryReservedPayload(order.orderId(), order.correlationId()),
-                order.correlationId()
+                new StockReservedPayload(order.orderId()),
+                correlationId
         );
         log.info("Stock reserved for orderId={}", order.orderId());
     }
@@ -212,21 +217,19 @@ public class StockService {
         log.info("Confirmed {} reservations for orderId={}, correlationId={}", pending.size(), orderId, correlationId);
     }
 
-    private static final String AGGREGATE_TYPE = "inventory";
-
     @Transactional
-    public void publishInventoryFailed(UUID orderId, String correlationId) {
+    public void publishStockFailed(UUID orderId, String correlationId) {
         publishOutbox(
-                EventType.INVENTORY_FAILED,
+                EventType.STOCK_FAILED,
                 orderId.toString(),
-                buildInventoryFailedPayload(orderId, null, 0, 0, correlationId),
+                new StockFailedPayload(orderId, null, 0, 0),
                 correlationId
         );
-        log.warn("Published INVENTORY_FAILED after exhausted retries: orderId={}", orderId);
+        log.warn("Published STOCK_FAILED after exhausted retries: orderId={}", orderId);
     }
 
     private void publishOutbox(EventType eventType, String aggregateId,
-                               Map<String, Object> payload, String correlationId) {
+                               Object payload, String correlationId) {
         try {
             OutboxEvent event = OutboxEvent.builder()
                     .aggregateType(AGGREGATE_TYPE)
@@ -240,26 +243,5 @@ public class StockService {
             log.error("Failed to serialize outbox payload for eventType={}", eventType, e);
             throw new RuntimeException("Outbox serialization failed", e);
         }
-    }
-
-    private Map<String, Object> buildInventoryReservedPayload(UUID orderId, String correlationId) {
-        return Map.of(
-                "eventType", EventType.INVENTORY_RESERVED.name(),
-                "orderId", orderId.toString(),
-                "correlationId", correlationId != null ? correlationId : ""
-        );
-    }
-
-    private Map<String, Object> buildInventoryFailedPayload(UUID orderId, UUID productId,
-                                                            int requested, int available,
-                                                            String correlationId) {
-        return Map.of(
-                "eventType", EventType.INVENTORY_FAILED.name(),
-                "orderId", orderId.toString(),
-                "failedProductId", productId != null ? productId.toString() : "",
-                "requested", requested,
-                "available", available,
-                "correlationId", correlationId != null ? correlationId : ""
-        );
     }
 }

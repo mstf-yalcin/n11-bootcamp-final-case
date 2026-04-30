@@ -26,7 +26,7 @@ spring:
     init:
       mode: ${SQL_INIT_MODE:always}
       data-locations:
-        - classpath:db/seed/01_inventory.sql
+        - classpath:db/seed/01_stock.sql
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:

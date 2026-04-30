@@ -9,7 +9,6 @@ import com.n11.bootcamp.stock_service.service.StockService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -26,7 +25,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/stocks")
-@Tag(name = "Stock", description = "Inventory and stock management endpoints")
+@Tag(name = "Stock", description = "Stock management and reservation endpoints")
 public class StockController {
 
     private final StockService stockService;

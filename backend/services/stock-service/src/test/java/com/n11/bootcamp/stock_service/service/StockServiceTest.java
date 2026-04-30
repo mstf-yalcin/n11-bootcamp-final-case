@@ -4,9 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n11.bootcamp.stock_service.dto.request.CreateStockRequest;
 import com.n11.bootcamp.stock_service.dto.request.UpdateStockRequest;
 import com.n11.bootcamp.stock_service.dto.response.StockResponse;
-import com.n11.bootcamp.stock_service.entity.Inventory;
 import com.n11.bootcamp.stock_service.entity.OutboxEvent;
 import com.n11.bootcamp.stock_service.entity.ReservationStatus;
+import com.n11.bootcamp.stock_service.entity.Stock;
 import com.n11.bootcamp.stock_service.entity.StockReservation;
 import com.n11.bootcamp.common_lib.event.order.OrderCreatedPayload;
 import com.n11.bootcamp.common_lib.event.order.OrderEventItem;
@@ -58,17 +58,17 @@ class StockServiceTest {
     void testCreateStock_when_productIdNew_returnsStockResponse() {
         UUID productId = UUID.randomUUID();
         CreateStockRequest request = new CreateStockRequest(productId, 100);
-        Inventory savedInventory = Inventory.builder().productId(productId).quantity(100).reserved(0).build();
+        Stock savedStock = Stock.builder().productId(productId).quantity(100).reserved(0).build();
         StockResponse expected = new StockResponse(UUID.randomUUID(), productId, 100, 0, 100, null);
 
-        when(stockRepository.existsByProductId(productId)).thenReturn(false);
-        when(stockRepository.save(any())).thenReturn(savedInventory);
-        when(stockMapper.toResponse(savedInventory)).thenReturn(expected);
+        when(stockRepository.existsByProductIdAndIsActiveTrue(productId)).thenReturn(false);
+        when(stockRepository.save(any())).thenReturn(savedStock);
+        when(stockMapper.toResponse(savedStock)).thenReturn(expected);
 
         StockResponse result = stockService.createStock(request);
 
         assertThat(result).isEqualTo(expected);
-        verify(stockRepository).save(any(Inventory.class));
+        verify(stockRepository).save(any(Stock.class));
     }
 
     @Test
@@ -76,7 +76,7 @@ class StockServiceTest {
         UUID productId = UUID.randomUUID();
         CreateStockRequest request = new CreateStockRequest(productId, 100);
 
-        when(stockRepository.existsByProductId(productId)).thenReturn(true);
+        when(stockRepository.existsByProductIdAndIsActiveTrue(productId)).thenReturn(true);
 
         assertThatThrownBy(() -> stockService.createStock(request))
                 .isInstanceOf(StockAlreadyExistsException.class);
@@ -96,91 +96,91 @@ class StockServiceTest {
     @Test
     void testUpdateStock_when_stockExists_updatesQuantity() {
         UUID productId = UUID.randomUUID();
-        Inventory inventory = Inventory.builder().productId(productId).quantity(50).reserved(5).build();
+        Stock stock = Stock.builder().productId(productId).quantity(50).reserved(5).build();
         UpdateStockRequest request = new UpdateStockRequest(200);
         StockResponse expected = new StockResponse(UUID.randomUUID(), productId, 200, 5, 195, null);
 
-        when(stockRepository.findByProductIdAndIsActiveTrue(productId)).thenReturn(Optional.of(inventory));
-        when(stockRepository.save(inventory)).thenReturn(inventory);
-        when(stockMapper.toResponse(inventory)).thenReturn(expected);
+        when(stockRepository.findByProductIdAndIsActiveTrue(productId)).thenReturn(Optional.of(stock));
+        when(stockRepository.save(stock)).thenReturn(stock);
+        when(stockMapper.toResponse(stock)).thenReturn(expected);
 
         StockResponse result = stockService.updateStock(productId, request);
 
         assertThat(result.quantity()).isEqualTo(200);
-        assertThat(inventory.getQuantity()).isEqualTo(200);
+        assertThat(stock.getQuantity()).isEqualTo(200);
     }
 
     @Test
-    void testReserveStock_when_stockAvailable_reservesAndPublishesInventoryReserved() {
+    void testReserveStock_when_stockAvailable_reservesAndPublishesStockReserved() {
         UUID orderId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
         String correlationId = UUID.randomUUID().toString();
 
-        Inventory inventory = Inventory.builder()
+        Stock stock = Stock.builder()
                 .productId(productId).quantity(100).reserved(0).build();
 
         OrderCreatedPayload order = new OrderCreatedPayload(
-                orderId, UUID.randomUUID(), correlationId,
+                orderId, UUID.randomUUID(),
                 List.of(new OrderEventItem(productId, 5, BigDecimal.valueOf(50)))
         );
 
-        when(stockRepository.findByProductIdForUpdate(productId)).thenReturn(Optional.of(inventory));
-        when(stockRepository.save(inventory)).thenReturn(inventory);
+        when(stockRepository.findAllByProductIdInForUpdate(List.of(productId))).thenReturn(List.of(stock));
+        when(stockRepository.save(stock)).thenReturn(stock);
         when(reservationRepository.saveAll(anyList())).thenReturn(List.of());
         when(outboxEventRepository.save(any())).thenReturn(new OutboxEvent());
 
-        stockService.reserveStock(order);
+        stockService.reserveStock(order, correlationId);
 
-        assertThat(inventory.getReserved()).isEqualTo(5);
+        assertThat(stock.getReserved()).isEqualTo(5);
 
         ArgumentCaptor<OutboxEvent> captor = ArgumentCaptor.forClass(OutboxEvent.class);
         verify(outboxEventRepository).save(captor.capture());
-        assertThat(captor.getValue().getEventType()).isEqualTo("INVENTORY_RESERVED");
-        assertThat(captor.getValue().getAggregateType()).isEqualTo("inventory");
+        assertThat(captor.getValue().getEventType()).isEqualTo("STOCK_RESERVED");
+        assertThat(captor.getValue().getAggregateType()).isEqualTo("stock");
     }
 
     @Test
-    void testReserveStock_when_stockInsufficient_publishesInventoryFailed() {
+    void testReserveStock_when_stockInsufficient_publishesStockFailed() {
         UUID orderId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
 
-        Inventory inventory = Inventory.builder()
+        Stock stock = Stock.builder()
                 .productId(productId).quantity(3).reserved(0).build();
 
         OrderCreatedPayload order = new OrderCreatedPayload(
-                orderId, UUID.randomUUID(), "corr-1",
+                orderId, UUID.randomUUID(),
                 List.of(new OrderEventItem(productId, 10, BigDecimal.valueOf(50)))
         );
 
-        when(stockRepository.findByProductIdForUpdate(productId)).thenReturn(Optional.of(inventory));
+        when(stockRepository.findAllByProductIdInForUpdate(List.of(productId))).thenReturn(List.of(stock));
         when(outboxEventRepository.save(any())).thenReturn(new OutboxEvent());
 
-        stockService.reserveStock(order);
+        stockService.reserveStock(order, "corr-1");
 
         ArgumentCaptor<OutboxEvent> captor = ArgumentCaptor.forClass(OutboxEvent.class);
         verify(outboxEventRepository).save(captor.capture());
-        assertThat(captor.getValue().getEventType()).isEqualTo("INVENTORY_FAILED");
+        assertThat(captor.getValue().getEventType()).isEqualTo("STOCK_FAILED");
         verify(reservationRepository, never()).saveAll(anyList());
     }
 
     @Test
-    void testReserveStock_when_productNotInInventory_publishesInventoryFailed() {
+    void testReserveStock_when_productNotInStock_publishesStockFailed() {
         UUID orderId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
 
         OrderCreatedPayload order = new OrderCreatedPayload(
-                orderId, UUID.randomUUID(), "corr-2",
+                orderId, UUID.randomUUID(),
                 List.of(new OrderEventItem(productId, 1, BigDecimal.valueOf(50)))
         );
 
-        when(stockRepository.findByProductIdForUpdate(productId)).thenReturn(Optional.empty());
+        when(stockRepository.findAllByProductIdInForUpdate(List.of(productId))).thenReturn(List.of());
         when(outboxEventRepository.save(any())).thenReturn(new OutboxEvent());
 
-        stockService.reserveStock(order);
+        stockService.reserveStock(order, "corr-2");
 
         ArgumentCaptor<OutboxEvent> captor = ArgumentCaptor.forClass(OutboxEvent.class);
         verify(outboxEventRepository).save(captor.capture());
-        assertThat(captor.getValue().getEventType()).isEqualTo("INVENTORY_FAILED");
+        assertThat(captor.getValue().getEventType()).isEqualTo("STOCK_FAILED");
     }
 
     @Test
@@ -191,18 +191,14 @@ class StockServiceTest {
         StockReservation reservation = StockReservation.builder()
                 .orderId(orderId).productId(productId).quantity(5).status(ReservationStatus.PENDING).build();
 
-        Inventory inventory = Inventory.builder()
-                .productId(productId).quantity(100).reserved(5).build();
-
         when(reservationRepository.findAllByOrderIdAndStatus(orderId, ReservationStatus.PENDING))
                 .thenReturn(List.of(reservation));
-        when(stockRepository.findByProductIdForUpdate(productId)).thenReturn(Optional.of(inventory));
-        when(stockRepository.save(inventory)).thenReturn(inventory);
+        when(stockRepository.decrementReserved(productId, 5)).thenReturn(1);
         when(reservationRepository.saveAll(anyList())).thenReturn(List.of());
 
         stockService.releaseReservations(orderId, "corr-1");
 
-        assertThat(inventory.getReserved()).isEqualTo(0);
+        verify(stockRepository).decrementReserved(productId, 5);
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RELEASED);
     }
 
@@ -214,19 +210,14 @@ class StockServiceTest {
         StockReservation reservation = StockReservation.builder()
                 .orderId(orderId).productId(productId).quantity(3).status(ReservationStatus.PENDING).build();
 
-        Inventory inventory = Inventory.builder()
-                .productId(productId).quantity(100).reserved(3).build();
-
         when(reservationRepository.findAllByOrderIdAndStatus(orderId, ReservationStatus.PENDING))
                 .thenReturn(List.of(reservation));
-        when(stockRepository.findByProductIdForUpdate(productId)).thenReturn(Optional.of(inventory));
-        when(stockRepository.save(inventory)).thenReturn(inventory);
+        when(stockRepository.decrementQuantityAndReserved(productId, 3)).thenReturn(1);
         when(reservationRepository.saveAll(anyList())).thenReturn(List.of());
 
         stockService.confirmReservations(orderId, "corr-1");
 
-        assertThat(inventory.getQuantity()).isEqualTo(97);
-        assertThat(inventory.getReserved()).isEqualTo(0);
+        verify(stockRepository).decrementQuantityAndReserved(productId, 3);
         assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CONFIRMED);
     }
 

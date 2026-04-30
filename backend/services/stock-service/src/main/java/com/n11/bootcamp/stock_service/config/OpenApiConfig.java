@@ -13,7 +13,7 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("Stock Service API")
-                        .description("Inventory management — stock tracking, reservation (pessimistic lock), saga choreography consumer")
+                        .description("Stock management — quantity tracking, reservation, saga choreography consumer")
                         .version("v1.0.0"));
     }
 }
