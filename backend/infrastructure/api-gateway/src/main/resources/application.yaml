@@ -18,10 +18,51 @@ spring:
               uri: lb://user-service
               predicates:
                 - Path=/api/v1/auth/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: user-service
+                    fallbackUri: forward:/fallback/user
+
             - id: product-service
               uri: lb://product-service
               predicates:
                 - Path=/api/v1/product/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: product-service
+                    fallbackUri: forward:/fallback/product
+                - name: Retry
+                  args:
+                    retries: 3
+                    statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                    methods: GET
+                    backoff:
+                      firstBackoff: 100ms
+                      maxBackoff: 1000ms
+                      factor: 2
+                      basedOnPreviousValue: false
+
+            - id: cart-service
+              uri: lb://cart-service
+              predicates:
+                - Path=/api/v1/cart/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: cart-service
+                    fallbackUri: forward:/fallback/cart
+                - name: Retry
+                  args:
+                    retries: 3
+                    statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                    methods: GET
+                    backoff:
+                      firstBackoff: 100ms
+                      maxBackoff: 1000ms
+                      factor: 2
+                      basedOnPreviousValue: false
 
   config:
     import: optional:configserver:http://localhost:8888/
@@ -44,3 +85,29 @@ management:
     gateway:
       access: read_only
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      user-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 3
+      product-service:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 5
+      cart-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+  timelimiter:
+    instances:
+      user-service:
+        timeoutDuration: 3s
+      product-service:
+        timeoutDuration: 5s
+      cart-service:
+        timeoutDuration: 5s
