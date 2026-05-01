@@ -66,7 +66,7 @@ class PaymentServiceTest {
         orderCreatedPayload = new OrderCreatedPayload(orderId, userId, List.of(
                 // 2 * 50.00 = 100.00 total
                 new OrderEventItem(UUID.randomUUID(), 2, new BigDecimal("50.00"))
-        ));
+        ), null, null);
     }
 
     @Test

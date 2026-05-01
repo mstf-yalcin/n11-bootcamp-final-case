@@ -6,9 +6,13 @@ import com.n11.bootcamp.common_lib.event.order.CancelReason;
 import com.n11.bootcamp.common_lib.event.order.OrderStatus;
 import com.n11.bootcamp.order_service.client.CartClient;
 import com.n11.bootcamp.order_service.client.ProductClient;
+import com.n11.bootcamp.order_service.client.UserClient;
+import com.n11.bootcamp.order_service.client.dto.AddressClientResponse;
 import com.n11.bootcamp.order_service.client.dto.CartClientResponse;
 import com.n11.bootcamp.order_service.client.dto.CartItemClientResponse;
+import com.n11.bootcamp.order_service.client.dto.CheckoutContextClientResponse;
 import com.n11.bootcamp.order_service.client.dto.ProductClientResponse;
+import com.n11.bootcamp.order_service.client.dto.UserInfoClientResponse;
 import com.n11.bootcamp.order_service.dto.request.CreateOrderRequest;
 import com.n11.bootcamp.order_service.entity.Order;
 import com.n11.bootcamp.order_service.entity.OutboxEvent;
@@ -54,9 +58,24 @@ class OrderServiceTest {
     private ProductClient productClient;
     @Mock
     private CartClient cartClient;
+    @Mock
+    private UserClient userClient;
 
     @InjectMocks
     private OrderService orderService;
+
+    private static final String TEST_TC = "11111111111";
+    private static final String TEST_IP = "127.0.0.1";
+    private static final String TEST_EMAIL = "buyer@example.com";
+
+    private CheckoutContextClientResponse stubCheckoutContext(UUID userId) {
+        return new CheckoutContextClientResponse(
+                new UserInfoClientResponse(userId, TEST_EMAIL, "John", "Doe", "+905350000000"),
+                new AddressClientResponse(UUID.randomUUID(), "Ev", "John Doe",
+                        "Test Mah. Test Sok. No:1", "Istanbul", "Kadıköy",
+                        "Turkey", "34000", "+905350000000", true)
+        );
+    }
 
     @Test
     void testCreateOrder_when_cartHasItems_persistsOrderAndPublishesOrderCreated() {
@@ -74,6 +93,7 @@ class OrderServiceTest {
 
         when(cartClient.getCart()).thenReturn(ApiResponse.success(cart, "ok"));
         when(productClient.getProductsByIds(anyList())).thenReturn(ApiResponse.success(List.of(product), "ok"));
+        when(userClient.getCheckoutContext(addressId)).thenReturn(ApiResponse.success(stubCheckoutContext(userId), "ok"));
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> {
             Order o = inv.getArgument(0);
             if (o.getId() == null) o.setId(UUID.randomUUID());
@@ -84,7 +104,7 @@ class OrderServiceTest {
         when(orderMapper.toEventItems(anyList())).thenReturn(List.of());
         when(orderMapper.toResponse(any(Order.class))).thenReturn(null);
 
-        orderService.createOrder(userId, new CreateOrderRequest(addressId));
+        orderService.createOrder(userId, TEST_EMAIL, TEST_IP, new CreateOrderRequest(addressId, TEST_TC));
 
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
         verify(orderRepository).save(orderCaptor.capture());
@@ -111,7 +131,7 @@ class OrderServiceTest {
                 userId, List.of(), BigDecimal.ZERO, "TRY", Instant.now());
         when(cartClient.getCart()).thenReturn(ApiResponse.success(emptyCart, "ok"));
 
-        assertThatThrownBy(() -> orderService.createOrder(userId, new CreateOrderRequest(addressId)))
+        assertThatThrownBy(() -> orderService.createOrder(userId, TEST_EMAIL, TEST_IP, new CreateOrderRequest(addressId, TEST_TC)))
                 .isInstanceOf(EmptyCartException.class);
 
         verify(orderRepository, never()).save(any(Order.class));

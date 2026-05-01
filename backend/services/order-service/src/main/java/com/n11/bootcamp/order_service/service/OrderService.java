@@ -5,26 +5,29 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n11.bootcamp.common_lib.dto.response.ApiResponse;
 import com.n11.bootcamp.common_lib.event.AggregateType;
 import com.n11.bootcamp.common_lib.event.EventType;
+import com.n11.bootcamp.common_lib.event.order.BuyerInfo;
 import com.n11.bootcamp.common_lib.event.order.CancelReason;
 import com.n11.bootcamp.common_lib.event.order.OrderCancelledPayload;
 import com.n11.bootcamp.common_lib.event.order.OrderConfirmedPayload;
 import com.n11.bootcamp.common_lib.event.order.OrderCreatedPayload;
 import com.n11.bootcamp.common_lib.event.order.OrderEventItem;
 import com.n11.bootcamp.common_lib.event.order.OrderStatus;
+import com.n11.bootcamp.common_lib.event.order.ShippingAddress;
 import com.n11.bootcamp.order_service.client.CartClient;
 import com.n11.bootcamp.order_service.client.ProductClient;
+import com.n11.bootcamp.order_service.client.UserClient;
+import com.n11.bootcamp.order_service.client.dto.AddressClientResponse;
 import com.n11.bootcamp.order_service.client.dto.CartClientResponse;
 import com.n11.bootcamp.order_service.client.dto.CartItemClientResponse;
+import com.n11.bootcamp.order_service.client.dto.CheckoutContextClientResponse;
 import com.n11.bootcamp.order_service.client.dto.ProductClientResponse;
+import com.n11.bootcamp.order_service.client.dto.UserInfoClientResponse;
 import com.n11.bootcamp.order_service.dto.request.CreateOrderRequest;
 import com.n11.bootcamp.order_service.dto.response.OrderResponse;
 import com.n11.bootcamp.order_service.entity.Order;
 import com.n11.bootcamp.order_service.entity.OrderItem;
 import com.n11.bootcamp.order_service.entity.OutboxEvent;
-import com.n11.bootcamp.order_service.exception.EmptyCartException;
-import com.n11.bootcamp.order_service.exception.InvalidOrderStateException;
-import com.n11.bootcamp.order_service.exception.OrderNotFoundException;
-import com.n11.bootcamp.order_service.exception.ProductSnapshotMismatchException;
+import com.n11.bootcamp.order_service.exception.*;
 import com.n11.bootcamp.order_service.mapper.OrderMapper;
 import com.n11.bootcamp.order_service.repository.OrderRepository;
 import com.n11.bootcamp.order_service.repository.OutboxEventRepository;
@@ -56,19 +59,22 @@ public class OrderService {
     private final ObjectMapper objectMapper;
     private final ProductClient productClient;
     private final CartClient cartClient;
+    private final UserClient userClient;
 
     public OrderService(OrderRepository orderRepository,
                         OutboxEventRepository outboxEventRepository,
                         OrderMapper orderMapper,
                         ObjectMapper objectMapper,
                         ProductClient productClient,
-                        CartClient cartClient) {
+                        CartClient cartClient,
+                        UserClient userClient) {
         this.orderRepository = orderRepository;
         this.outboxEventRepository = outboxEventRepository;
         this.orderMapper = orderMapper;
         this.objectMapper = objectMapper;
         this.productClient = productClient;
         this.cartClient = cartClient;
+        this.userClient = userClient;
     }
 
     public OrderResponse getOrder(UUID orderId, UUID userId) {
@@ -84,7 +90,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse createOrder(UUID userId, CreateOrderRequest request) {
+    public OrderResponse createOrder(UUID userId, String userEmail, String ip, CreateOrderRequest request) {
         String correlationId = MDC.get("correlationId");
         log.info("Creating order: userId={}, addressId={}, correlationId={}",
                 userId, request.addressId(), correlationId);
@@ -106,6 +112,10 @@ public class OrderService {
             throw new ProductSnapshotMismatchException(missing);
         }
 
+        CheckoutContextClientResponse ctx = fetchCheckoutContext(request.addressId());
+        UserInfoClientResponse userInfo = ctx.user();
+        AddressClientResponse address = ctx.address();
+
         Order order = Order.builder()
                 .userId(userId)
                 .status(OrderStatus.PENDING)
@@ -113,6 +123,18 @@ public class OrderService {
                 .addressId(request.addressId())
                 .correlationId(correlationId)
                 .totalAmount(BigDecimal.ZERO)
+                .identityNumber(request.identityNumber())
+                .ip(ip)
+                .buyerFirstName(userInfo.firstName())
+                .buyerLastName(userInfo.lastName())
+                .buyerEmail(userInfo.email() != null ? userInfo.email() : userEmail)
+                .buyerPhone(userInfo.phone())
+                .shippingContactName(address.contactName())
+                .shippingAddress(address.fullAddress())
+                .shippingCity(address.city())
+                .shippingDistrict(address.district())
+                .shippingCountry(address.country() != null ? address.country() : "Turkey")
+                .shippingZipCode(address.zipCode())
                 .build();
 
         BigDecimal total = BigDecimal.ZERO;
@@ -139,7 +161,7 @@ public class OrderService {
         log.info("Order persisted: id={}, userId={}, totalAmount={} {}",
                 saved.getId(), userId, saved.getTotalAmount(), saved.getCurrency());
 
-        publishOrderCreated(saved, correlationId);
+        publishOrderCreated(saved, address, userInfo, correlationId);
 
         safeClearCart(saved.getId());
 
@@ -266,6 +288,14 @@ public class OrderService {
         return products.stream().collect(Collectors.toMap(ProductClientResponse::id, Function.identity()));
     }
 
+    private CheckoutContextClientResponse fetchCheckoutContext(UUID addressId) {
+        ApiResponse<CheckoutContextClientResponse> response = userClient.getCheckoutContext(addressId);
+        if (response == null || response.data() == null) {
+            throw new UserServiceUnavailableException();
+        }
+        return response.data();
+    }
+
     private void safeClearCart(UUID orderId) {
         try {
             cartClient.clearCart();
@@ -276,9 +306,32 @@ public class OrderService {
         }
     }
 
-    private void publishOrderCreated(Order order, String correlationId) {
+    private void publishOrderCreated(Order order, AddressClientResponse address,
+                                     UserInfoClientResponse userInfo, String correlationId) {
         List<OrderEventItem> items = orderMapper.toEventItems(order.getItems());
-        OrderCreatedPayload payload = new OrderCreatedPayload(order.getId(), order.getUserId(), items);
+
+        BuyerInfo buyer = new BuyerInfo(
+                order.getBuyerFirstName(),
+                order.getBuyerLastName(),
+                order.getBuyerEmail(),
+                order.getBuyerPhone(),
+                order.getIdentityNumber(),
+                order.getIp()
+        );
+
+        ShippingAddress shippingAddress = new ShippingAddress(
+                order.getShippingContactName(),
+                order.getShippingAddress(),
+                order.getShippingCity(),
+                order.getShippingDistrict(),
+                order.getShippingCountry(),
+                order.getShippingZipCode(),
+                address.phone()
+        );
+
+        OrderCreatedPayload payload = new OrderCreatedPayload(
+                order.getId(), order.getUserId(), items, buyer, shippingAddress
+        );
         publishOutbox(EventType.ORDER_CREATED, order.getId().toString(), payload, correlationId);
     }
 

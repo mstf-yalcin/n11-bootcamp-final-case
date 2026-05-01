@@ -77,6 +77,47 @@ public class Payment extends BaseEntity {
     @Column(name = "correlation_id", length = 100)
     private String correlationId;
 
+    // ===== Buyer snapshot (self-contained — Iyzico request + audit + refund) =====
+    @Column(name = "buyer_first_name", length = 100)
+    private String buyerFirstName;
+
+    @Column(name = "buyer_last_name", length = 100)
+    private String buyerLastName;
+
+    @Column(name = "buyer_email", length = 255)
+    private String buyerEmail;
+
+    @Column(name = "buyer_phone", length = 20)
+    private String buyerPhone;
+
+    @Column(name = "buyer_identity_number", length = 11)
+    private String buyerIdentityNumber;
+
+    @Column(name = "buyer_ip", length = 45)
+    private String buyerIp;
+
+    // ===== Shipping snapshot =====
+    @Column(name = "shipping_contact_name", length = 100)
+    private String shippingContactName;
+
+    @Column(name = "shipping_address", length = 500)
+    private String shippingAddress;
+
+    @Column(name = "shipping_city", length = 100)
+    private String shippingCity;
+
+    @Column(name = "shipping_district", length = 100)
+    private String shippingDistrict;
+
+    @Column(name = "shipping_country", length = 100)
+    private String shippingCountry;
+
+    @Column(name = "shipping_zip_code", length = 10)
+    private String shippingZipCode;
+
+    @Column(name = "shipping_phone", length = 20)
+    private String shippingPhone;
+
     @Version
     @Column(nullable = false)
     @Builder.Default

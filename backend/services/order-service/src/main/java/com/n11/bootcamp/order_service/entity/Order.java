@@ -65,6 +65,43 @@ public class Order extends BaseEntity {
     @Column(name = "address_id", nullable = false)
     private UUID addressId;
 
+    @Column(name = "identity_number", length = 11)
+    private String identityNumber;
+
+    @Column(name = "ip", length = 45)
+    private String ip;
+
+    @Column(name = "buyer_first_name", length = 100)
+    private String buyerFirstName;
+
+    @Column(name = "buyer_last_name", length = 100)
+    private String buyerLastName;
+
+    @Column(name = "buyer_email", length = 255)
+    private String buyerEmail;
+
+    @Column(name = "buyer_phone", length = 20)
+    private String buyerPhone;
+
+    @Column(name = "shipping_contact_name", length = 100)
+    private String shippingContactName;
+
+    @Column(name = "shipping_address", length = 500)
+    private String shippingAddress;
+
+    @Column(name = "shipping_city", length = 100)
+    private String shippingCity;
+
+    @Column(name = "shipping_district", length = 100)
+    private String shippingDistrict;
+
+    @Column(name = "shipping_country", length = 100)
+    @Builder.Default
+    private String shippingCountry = "Turkey";
+
+    @Column(name = "shipping_zip_code", length = 10)
+    private String shippingZipCode;
+
     @Column(name = "correlation_id", length = 100)
     private String correlationId;
 

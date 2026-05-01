@@ -6,5 +6,7 @@ import java.util.UUID;
 public record OrderCreatedPayload(
         UUID orderId,
         UUID userId,
-        List<OrderEventItem> items
+        List<OrderEventItem> items,
+        BuyerInfo buyer,
+        ShippingAddress shippingAddress
 ) {}

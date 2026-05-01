@@ -82,6 +82,26 @@ public class PaymentService {
         payment.setAmount(computeAmount(order.items()));
         payment.setCurrency(DEFAULT_CURRENCY);
         payment.setCorrelationId(correlationId);
+
+        // Snapshot buyer + shipping for self-contained Iyzico request + audit + refund
+        if (order.buyer() != null) {
+            payment.setBuyerFirstName(order.buyer().firstName());
+            payment.setBuyerLastName(order.buyer().lastName());
+            payment.setBuyerEmail(order.buyer().email());
+            payment.setBuyerPhone(order.buyer().phone());
+            payment.setBuyerIdentityNumber(order.buyer().identityNumber());
+            payment.setBuyerIp(order.buyer().ip());
+        }
+        if (order.shippingAddress() != null) {
+            payment.setShippingContactName(order.shippingAddress().contactName());
+            payment.setShippingAddress(order.shippingAddress().fullAddress());
+            payment.setShippingCity(order.shippingAddress().city());
+            payment.setShippingDistrict(order.shippingAddress().district());
+            payment.setShippingCountry(order.shippingAddress().country());
+            payment.setShippingZipCode(order.shippingAddress().zipCode());
+            payment.setShippingPhone(order.shippingAddress().phone());
+        }
+
         payment = paymentRepository.save(payment);
 
         log.info("Order side recorded: paymentId={}, orderId={}, amount={} {}, stockConfirmed={}, correlationId={}",
@@ -254,13 +274,31 @@ public class PaymentService {
     }
 
     private PaymentGatewayRequest buildGatewayRequest(Payment payment, String correlationId) {
+        PaymentGatewayRequest.Buyer buyer = new PaymentGatewayRequest.Buyer(
+                payment.getBuyerFirstName(),
+                payment.getBuyerLastName(),
+                payment.getBuyerEmail(),
+                payment.getBuyerPhone(),
+                payment.getBuyerIdentityNumber(),
+                payment.getBuyerIp()
+        );
+        PaymentGatewayRequest.Address address = new PaymentGatewayRequest.Address(
+                payment.getShippingContactName(),
+                payment.getShippingAddress(),
+                payment.getShippingCity(),
+                payment.getShippingDistrict(),
+                payment.getShippingCountry(),
+                payment.getShippingZipCode(),
+                payment.getShippingPhone()
+        );
         return new PaymentGatewayRequest(
                 payment.getOrderId(),
                 payment.getUserId(),
-                null,
                 payment.getAmount(),
                 payment.getCurrency(),
                 List.of(new PaymentGatewayRequest.Item(payment.getOrderId(), 1, payment.getAmount())),
+                buyer,
+                address,
                 correlationId
         );
     }

@@ -111,8 +111,8 @@ public class IyzicoPaymentGateway implements PaymentGateway {
 
         req.setPaymentCard(buildCard());
         req.setBuyer(buildBuyer(request));
-        req.setShippingAddress(buildAddress(request.userId().toString()));
-        req.setBillingAddress(buildAddress(request.userId().toString()));
+        req.setShippingAddress(buildAddress(request));
+        req.setBillingAddress(buildAddress(request));
         req.setBasketItems(buildBasket(request));
         return req;
     }
@@ -129,29 +129,38 @@ public class IyzicoPaymentGateway implements PaymentGateway {
     }
 
     private Buyer buildBuyer(PaymentGatewayRequest request) {
+        PaymentGatewayRequest.Buyer src = request.buyer();
+        PaymentGatewayRequest.Address addr = request.address();
         Buyer buyer = new Buyer();
         buyer.setId(request.userId().toString());
-        buyer.setName("Customer");
-        buyer.setSurname(request.userId().toString().substring(0, 8));
-        buyer.setGsmNumber("+905350000000");
-        buyer.setEmail(request.userEmail() != null ? request.userEmail() : "customer@example.com");
-        buyer.setIdentityNumber(DEFAULT_IDENTITY_NUMBER);
-        buyer.setRegistrationAddress(DEFAULT_ADDRESS);
-        buyer.setIp(DEFAULT_IP);
-        buyer.setCity(DEFAULT_CITY);
-        buyer.setCountry(DEFAULT_COUNTRY);
-        buyer.setZipCode(DEFAULT_ZIP);
+        buyer.setName(orDefault(src != null ? src.firstName() : null, "Customer"));
+        buyer.setSurname(orDefault(src != null ? src.lastName() : null,
+                request.userId().toString().substring(0, 8)));
+        buyer.setGsmNumber(orDefault(src != null ? src.phone() : null, "+905350000000"));
+        buyer.setEmail(orDefault(src != null ? src.email() : null, "customer@example.com"));
+        buyer.setIdentityNumber(orDefault(src != null ? src.identityNumber() : null, DEFAULT_IDENTITY_NUMBER));
+        buyer.setRegistrationAddress(orDefault(addr != null ? addr.fullAddress() : null, DEFAULT_ADDRESS));
+        buyer.setIp(orDefault(src != null ? src.ip() : null, DEFAULT_IP));
+        buyer.setCity(orDefault(addr != null ? addr.city() : null, DEFAULT_CITY));
+        buyer.setCountry(orDefault(addr != null ? addr.country() : null, DEFAULT_COUNTRY));
+        buyer.setZipCode(orDefault(addr != null ? addr.zipCode() : null, DEFAULT_ZIP));
         return buyer;
     }
 
-    private Address buildAddress(String contactName) {
+    private Address buildAddress(PaymentGatewayRequest request) {
+        PaymentGatewayRequest.Address src = request.address();
         Address address = new Address();
-        address.setContactName(contactName);
-        address.setCity(DEFAULT_CITY);
-        address.setCountry(DEFAULT_COUNTRY);
-        address.setAddress(DEFAULT_ADDRESS);
-        address.setZipCode(DEFAULT_ZIP);
+        address.setContactName(src != null && src.contactName() != null
+                ? src.contactName() : request.userId().toString());
+        address.setCity(orDefault(src != null ? src.city() : null, DEFAULT_CITY));
+        address.setCountry(orDefault(src != null ? src.country() : null, DEFAULT_COUNTRY));
+        address.setAddress(orDefault(src != null ? src.fullAddress() : null, DEFAULT_ADDRESS));
+        address.setZipCode(orDefault(src != null ? src.zipCode() : null, DEFAULT_ZIP));
         return address;
+    }
+
+    private static String orDefault(String value, String fallback) {
+        return (value != null && !value.isBlank()) ? value : fallback;
     }
 
     private List<BasketItem> buildBasket(PaymentGatewayRequest request) {

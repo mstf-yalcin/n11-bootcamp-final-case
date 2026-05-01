@@ -80,11 +80,18 @@ resilience4j:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
+      user-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
   retry:
     instances:
       product-service:
         maxAttempts: 3
         waitDuration: 500ms
       cart-service:
+        maxAttempts: 3
+        waitDuration: 500ms
+      user-service:
         maxAttempts: 3
         waitDuration: 500ms

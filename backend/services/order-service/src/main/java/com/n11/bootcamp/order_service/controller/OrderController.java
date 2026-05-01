@@ -7,6 +7,7 @@ import com.n11.bootcamp.order_service.dto.response.OrderResponse;
 import com.n11.bootcamp.order_service.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
@@ -41,10 +42,21 @@ public class OrderController {
     @Operation(summary = "Create a new order from the user's cart (saga starts: ORDER_CREATED -> stock -> payment -> confirm)")
     public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
             @AuthenticationPrincipal UserPrincipal principal,
-            @Valid @RequestBody CreateOrderRequest request) {
-        OrderResponse order = orderService.createOrder(UUID.fromString(principal.id()), request);
+            @Valid @RequestBody CreateOrderRequest request,
+            HttpServletRequest httpRequest) {
+        String ip = extractClientIp(httpRequest);
+        OrderResponse order = orderService.createOrder(
+                UUID.fromString(principal.id()), principal.email(), ip, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(order, "Order created"));
+    }
+
+    private String extractClientIp(HttpServletRequest req) {
+        String xff = req.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) {
+            return xff.split(",")[0].trim();
+        }
+        return req.getRemoteAddr();
     }
 
     @GetMapping("/{id}")
