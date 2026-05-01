@@ -16,6 +16,7 @@ public enum EventType {
     // Payment events
     PAYMENT_COMPLETED,
     PAYMENT_FAILED,
+    PAYMENT_REFUNDED,
 
     // Shipment events
     SHIPMENT_CREATED,

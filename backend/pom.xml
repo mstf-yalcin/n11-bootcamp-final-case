@@ -20,6 +20,7 @@
 		<module>services/stock-service</module>
 		<module>services/cart-service</module>
 		<module>services/order-service</module>
+		<module>services/payment-service</module>
 		<module>infrastructure/api-gateway</module>
 		<module>infrastructure/config-server</module>
 		<module>infrastructure/discovery-server</module>
