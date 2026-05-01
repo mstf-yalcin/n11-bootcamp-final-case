@@ -1,5 +1,6 @@
 package com.n11.bootcamp.user_service.controller;
 
+import com.n11.bootcamp.common_lib.auth.UserPrincipal;
 import com.n11.bootcamp.user_service.dto.request.AuthRequest;
 import com.n11.bootcamp.user_service.dto.request.RefreshTokenRequest;
 import com.n11.bootcamp.user_service.dto.request.RegisterRequest;
@@ -10,7 +11,7 @@ import com.n11.bootcamp.user_service.dto.response.UserResponse;
 import com.n11.bootcamp.user_service.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -57,7 +58,7 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<UserResponse>> getUserInfo( Authentication authentication) {
-        return ResponseEntity.ok(ApiResponse.success(authService.getUserInfo(authentication.getName()), "User information retrieved"));
+    public ResponseEntity<ApiResponse<UserResponse>> getUserInfo(@AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success(authService.getUserInfo(principal.email()), "User information retrieved"));
     }
 }

@@ -27,6 +27,9 @@ public class User extends BaseEntity implements UserDetails {
     private String firstName;
     private String lastName;
 
+    @Column(length = 15, unique = true)
+    private String phone;
+
     private boolean accountNonExpired = true;
     private boolean accountNonLocked = true;
     private boolean credentialsNonExpired = true;

@@ -11,9 +11,11 @@ import com.n11.bootcamp.user_service.entity.RoleEntity;
 import com.n11.bootcamp.user_service.entity.User;
 import com.n11.bootcamp.user_service.exception.EmailAlreadyExistsException;
 import com.n11.bootcamp.user_service.exception.InvalidTokenException;
+import com.n11.bootcamp.user_service.exception.PhoneAlreadyExistsException;
 import com.n11.bootcamp.user_service.exception.UserNotFoundException;
 import com.n11.bootcamp.user_service.repository.RoleRepository;
 import com.n11.bootcamp.user_service.repository.UserRepository;
+import com.n11.bootcamp.user_service.util.PhoneNormalizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -53,10 +55,16 @@ public class AuthService {
             throw new EmailAlreadyExistsException(authRequest.email());
         }
 
+        String normalizedPhone = PhoneNormalizer.ensureCountryCode(authRequest.phone());
+        if (normalizedPhone != null && userRepository.existsByPhone(normalizedPhone)) {
+            throw new PhoneAlreadyExistsException(normalizedPhone);
+        }
+
         User user = new User();
         user.setEmail(authRequest.email());
         user.setFirstName(authRequest.firstName());
         user.setLastName(authRequest.lastName());
+        user.setPhone(normalizedPhone);
         user.setPassword(passwordEncoder.encode(authRequest.password()));
 
         RoleEntity userRole = roleRepository.findByAuthority(Role.USER)
@@ -118,6 +126,7 @@ public class AuthService {
                 user.getEmail(),
                 user.getFirstName(),
                 user.getLastName(),
+                user.getPhone(),
                 user.getRoles().stream().map(RoleEntity::getAuthority).toList());
     }
 
@@ -126,4 +135,5 @@ public class AuthService {
                 .map(RoleEntity::getAuthority)
                 .toList();
     }
+
 }
