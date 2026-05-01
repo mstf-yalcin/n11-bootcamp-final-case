@@ -30,6 +30,16 @@ public class FallbackController {
         return fallback("order-service");
     }
 
+    @RequestMapping("/payment")
+    public ResponseEntity<ApiResponse<Void>> paymentFallback() {
+        return fallback("payment-service");
+    }
+
+    @RequestMapping("/stock")
+    public ResponseEntity<ApiResponse<Void>> stockFallback() {
+        return fallback("stock-service");
+    }
+
     private ResponseEntity<ApiResponse<Void>> fallback(String service) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ApiResponse.fail(
