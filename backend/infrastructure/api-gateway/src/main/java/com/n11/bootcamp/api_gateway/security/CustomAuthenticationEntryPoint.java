@@ -22,6 +22,7 @@ public class CustomAuthenticationEntryPoint implements ServerAuthenticationEntry
         return errorResponseBuilder.buildErrorResponse(
                 exchange,
                 HttpStatus.UNAUTHORIZED,
-                authenticationException.getMessage());
+                authenticationException.getMessage(),
+                "INVALID_TOKEN");
     }
 }

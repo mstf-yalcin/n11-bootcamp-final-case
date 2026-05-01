@@ -22,6 +22,7 @@ public class CustomAccessDeniedHandler implements ServerAccessDeniedHandler {
         return errorResponseBuilder.buildErrorResponse(
                 exchange,
                 HttpStatus.FORBIDDEN,
-                accessDeniedException.getMessage());
+                accessDeniedException.getMessage(),
+                "ACCESS_DENIED");
     }
 }
