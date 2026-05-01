@@ -8,12 +8,11 @@ import com.n11.bootcamp.product_service.entity.Product;
 import com.n11.bootcamp.product_service.entity.Tag;
 import com.n11.bootcamp.product_service.exception.CategoryNotFoundException;
 import com.n11.bootcamp.product_service.exception.ProductNotFoundException;
-import com.n11.bootcamp.product_service.exception.SlugAlreadyExistsException;
+import com.n11.bootcamp.product_service.exception.SlugGenerationException;
 import com.n11.bootcamp.product_service.mapper.ProductMapper;
 import com.n11.bootcamp.product_service.repository.CategoryRepository;
 import com.n11.bootcamp.product_service.repository.ProductRepository;
 import com.n11.bootcamp.product_service.repository.TagRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,10 +20,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
 @Service
@@ -87,14 +88,9 @@ public class ProductService {
         Category category = categoryRepository.findByIdAndIsActiveTrue(request.categoryId())
                 .orElseThrow(() -> new CategoryNotFoundException(request.categoryId()));
 
-        String slug = generateSlug(request.name());
-        if (productRepository.existsBySlug(slug)) {
-            throw new SlugAlreadyExistsException(slug);
-        }
-
         Product product = productMapper.toEntity(request);
         product.setCategory(category);
-        product.setSlug(slug);
+        product.setSlug(generateUniqueSlug(request.name()));
         product.setCurrency(request.currency() != null ? request.currency() : "TRY");
         product.setRatingCount(0);
         product.setRatingAverage(BigDecimal.ZERO);
@@ -113,14 +109,8 @@ public class ProductService {
         Category category = categoryRepository.findByIdAndIsActiveTrue(request.categoryId())
                 .orElseThrow(() -> new CategoryNotFoundException(request.categoryId()));
 
-        String slug = generateSlug(request.name());
-        if (!slug.equals(product.getSlug()) && productRepository.existsBySlug(slug)) {
-            throw new SlugAlreadyExistsException(slug);
-        }
-
         productMapper.updateEntity(request, product);
         product.setCategory(category);
-        product.setSlug(slug);
         if (request.currency() != null) {
             product.setCurrency(request.currency());
         }
@@ -129,7 +119,7 @@ public class ProductService {
         }
 
         Product saved = productRepository.save(product);
-        log.info("Product updated: id={}, slug={}", saved.getId(), saved.getSlug());
+        log.info("Product updated: id={}, slug={} (unchanged)", saved.getId(), saved.getSlug());
         return productMapper.toResponse(saved);
     }
 
@@ -150,8 +140,30 @@ public class ProductService {
         return new HashSet<>(tagRepository.findAllById(tagIds));
     }
 
-    private String generateSlug(String name) {
-        return name.toLowerCase()
+    private String generateUniqueSlug(String name) {
+        String baseSlug = slugifyTurkish(name);
+
+        for (int i = 0; i < 5; i++) {
+            String slug = baseSlug + "-" + ThreadLocalRandom.current().nextInt(10_000_000, 100_000_000);
+            if (!productRepository.existsBySlug(slug)) {
+                return slug;
+            }
+        }
+        throw new SlugGenerationException(name);
+    }
+
+    /** Türkçe ı/ğ/ş/ç/ö/ü  + Unicode NFD normalize + slug-safe filter. */
+    private String slugifyTurkish(String input) {
+        String tr = input
+                .replace('ı', 'i').replace('İ', 'I')
+                .replace('ğ', 'g').replace('Ğ', 'G')
+                .replace('ş', 's').replace('Ş', 'S')
+                .replace('ö', 'o').replace('Ö', 'O')
+                .replace('ü', 'u').replace('Ü', 'U')
+                .replace('ç', 'c').replace('Ç', 'C');
+        return Normalizer.normalize(tr, Normalizer.Form.NFD)
+                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
+                .toLowerCase()
                 .replaceAll("[^a-z0-9\\s]", "")
                 .trim()
                 .replaceAll("\\s+", "-");
