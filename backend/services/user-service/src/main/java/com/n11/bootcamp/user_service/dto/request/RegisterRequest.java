@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public record RegisterRequest(
-        @Email
+        @Email(message = "Email must be a valid email address")
         @NotBlank(message = "Email is required")
         String email,
 
@@ -21,6 +21,7 @@ public record RegisterRequest(
         @Size(min = 2, max = 50, message = "Last name must be between 2 and 50 characters")
         String lastName,
 
+        @NotBlank(message = "Phone is required")
         @Pattern(regexp = "^(\\+90)?5\\d{9}$",
                 message = "Phone must be a valid Turkish mobile number (5XXXXXXXXX or +905XXXXXXXXX)")
         String phone) {

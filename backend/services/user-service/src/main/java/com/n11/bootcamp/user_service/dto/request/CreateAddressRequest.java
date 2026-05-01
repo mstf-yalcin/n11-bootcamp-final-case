@@ -30,6 +30,7 @@ public record CreateAddressRequest(
         @Size(max = 10)
         String zipCode,
 
+        @NotBlank(message = "Phone is required")
         @Pattern(regexp = "^(\\+90)?5\\d{9}$",
                 message = "Phone must be a valid Turkish mobile number (5XXXXXXXXX or +905XXXXXXXXX)")
         String phone,
