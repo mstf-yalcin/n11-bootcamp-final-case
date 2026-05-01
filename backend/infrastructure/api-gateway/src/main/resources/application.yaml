@@ -27,7 +27,7 @@ spring:
             - id: product-service
               uri: lb://product-service
               predicates:
-                - Path=/api/v1/product/**
+                - Path=/api/v1/products/**
               filters:
                 - name: CircuitBreaker
                   args:

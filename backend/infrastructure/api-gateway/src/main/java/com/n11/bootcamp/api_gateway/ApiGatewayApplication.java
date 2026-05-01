@@ -1,4 +1,4 @@
-package com.n11.bootcamp;
+package com.n11.bootcamp.api_gateway;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
