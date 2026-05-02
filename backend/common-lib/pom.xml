@@ -10,6 +10,10 @@
 	</parent>
 	<artifactId>common-lib</artifactId>
 
+	<properties>
+		<jib.skip>true</jib.skip>
+	</properties>
+
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
