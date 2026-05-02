@@ -78,7 +78,7 @@ public class OrderController {
     }
 
     @PutMapping("/{id}/cancel")
-    @Operation(summary = "Cancel an order (only allowed in PENDING or STOCK_RESERVED state)")
+    @Operation(summary = "Cancel an order (allowed in PENDING, STOCK_RESERVED, or CONFIRMED — refund triggered for paid orders)")
     public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable UUID id) {

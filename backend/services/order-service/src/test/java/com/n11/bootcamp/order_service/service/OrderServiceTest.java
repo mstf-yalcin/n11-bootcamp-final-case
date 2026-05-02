@@ -241,12 +241,57 @@ class OrderServiceTest {
     }
 
     @Test
-    void testCancelOrder_when_alreadyConfirmed_throwsInvalidOrderStateException() {
+    void testCancelOrder_when_confirmed_cancelsAndPublishesOrderCancelled() {
         UUID orderId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         Order order = Order.builder()
                 .userId(userId)
                 .status(OrderStatus.CONFIRMED)
+                .totalAmount(new BigDecimal("200.00"))
+                .currency("TRY")
+                .addressId(UUID.randomUUID())
+                .build();
+        order.setId(orderId);
+
+        when(orderRepository.findByIdAndUserIdAndIsActiveTrue(orderId, userId)).thenReturn(Optional.of(order));
+        when(outboxEventRepository.save(any(OutboxEvent.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(orderMapper.toResponse(any(Order.class))).thenReturn(null);
+
+        orderService.cancelOrder(orderId, userId);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(order.getCancelReason()).isEqualTo(CancelReason.USER_CANCELLED);
+
+        ArgumentCaptor<OutboxEvent> captor = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outboxEventRepository).save(captor.capture());
+        assertThat(captor.getValue().getEventType()).isEqualTo("ORDER_CANCELLED");
+    }
+
+    @Test
+    void testCancelOrder_when_shipped_throwsInvalidOrderStateException() {
+        UUID orderId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Order order = Order.builder()
+                .userId(userId)
+                .status(OrderStatus.SHIPPED)
+                .totalAmount(new BigDecimal("200.00"))
+                .currency("TRY")
+                .addressId(UUID.randomUUID())
+                .build();
+
+        when(orderRepository.findByIdAndUserIdAndIsActiveTrue(orderId, userId)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.cancelOrder(orderId, userId))
+                .isInstanceOf(InvalidOrderStateException.class);
+    }
+
+    @Test
+    void testCancelOrder_when_paymentProcessing_throwsInvalidOrderStateException() {
+        UUID orderId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Order order = Order.builder()
+                .userId(userId)
+                .status(OrderStatus.PAYMENT_PROCESSING)
                 .totalAmount(new BigDecimal("200.00"))
                 .currency("TRY")
                 .addressId(UUID.randomUUID())

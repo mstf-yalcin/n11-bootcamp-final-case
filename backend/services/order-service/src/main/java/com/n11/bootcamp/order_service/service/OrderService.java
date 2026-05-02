@@ -252,9 +252,12 @@ public class OrderService {
         Order order = orderRepository.findByIdAndUserIdAndIsActiveTrue(orderId, userId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
 
-        if (order.getStatus() != OrderStatus.PENDING
-                && order.getStatus() != OrderStatus.STOCK_RESERVED) {
-            throw new InvalidOrderStateException(order.getStatus(), "cancel");
+        OrderStatus status = order.getStatus();
+        boolean cancellable = status == OrderStatus.PENDING
+                || status == OrderStatus.STOCK_RESERVED
+                || status == OrderStatus.CONFIRMED;
+        if (!cancellable) {
+            throw new InvalidOrderStateException(status, "cancel");
         }
 
         String correlationId = MDC.get("correlationId");
