@@ -32,6 +32,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/.well-known/**").permitAll()
                         .requestMatchers(SecurityPaths.SWAGGER).permitAll()
+                        .requestMatchers(SecurityPaths.ACTUATOR_PUBLIC).permitAll()
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider)

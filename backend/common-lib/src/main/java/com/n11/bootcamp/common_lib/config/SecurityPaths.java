@@ -10,7 +10,9 @@ public final class SecurityPaths {
 
     public static final String[] ACTUATOR_PUBLIC = {
             "/actuator/health",
-            "/actuator/info"
+            "/actuator/health/**",
+            "/actuator/info",
+            "/actuator/prometheus"
     };
 
     private SecurityPaths() {
