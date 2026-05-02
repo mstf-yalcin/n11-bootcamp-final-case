@@ -27,6 +27,8 @@ import com.n11.bootcamp.stock_service.repository.OutboxEventRepository;
 import com.n11.bootcamp.stock_service.repository.StockReservationRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -102,6 +104,13 @@ public class StockService {
                 .stream()
                 .map(stockMapper::toReservationResponse)
                 .toList();
+    }
+
+    public Page<ReservationResponse> searchAdminReservations(ReservationStatus status, UUID productId,
+                                                             UUID orderId, Pageable pageable) {
+        return reservationRepository
+                .searchAdminReservations(status, productId, orderId, pageable)
+                .map(stockMapper::toReservationResponse);
     }
 
     @Transactional

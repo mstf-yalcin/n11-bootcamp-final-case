@@ -10,14 +10,8 @@ CREATE TABLE IF NOT EXISTS categories (
 
 -- Backfill for existing deployments where the column didn't exist yet.
 ALTER TABLE categories ADD COLUMN IF NOT EXISTS slug VARCHAR(120);
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint WHERE conname = 'categories_slug_key'
-    ) THEN
-        ALTER TABLE categories ADD CONSTRAINT categories_slug_key UNIQUE (slug);
-    END IF;
-END $$;
+ALTER TABLE categories DROP CONSTRAINT IF EXISTS categories_slug_key;
+ALTER TABLE categories ADD CONSTRAINT categories_slug_key UNIQUE (slug);
 
 INSERT INTO categories (id, name, slug, description, is_active, created_at, updated_at)
 VALUES

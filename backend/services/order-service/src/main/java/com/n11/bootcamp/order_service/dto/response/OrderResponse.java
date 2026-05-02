@@ -1,5 +1,6 @@
 package com.n11.bootcamp.order_service.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.n11.bootcamp.common_lib.event.order.CancelReason;
 import com.n11.bootcamp.common_lib.event.order.OrderStatus;
 
@@ -8,6 +9,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record OrderResponse(
         UUID id,
         UUID userId,
@@ -18,5 +20,9 @@ public record OrderResponse(
         UUID addressId,
         List<OrderItemResponse> items,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        String buyerEmail,
+        String buyerFullName,
+        String shippingCity,
+        String shippingDistrict
 ) {}

@@ -35,21 +35,11 @@ management:
   endpoints:
     web:
       exposure:
-        include: "*"
-  health:
-    liveness-state:
-      enabled: true
-    readiness-state:
-      enabled: true
+        include: health,info,prometheus,metrics
   endpoint:
-    shutdown:
-      enabled: true
     health:
       probes:
         enabled: true
-  info:
-    env:
-      enabled: true
   metrics:
     tags:
       application: ${spring.application.name}

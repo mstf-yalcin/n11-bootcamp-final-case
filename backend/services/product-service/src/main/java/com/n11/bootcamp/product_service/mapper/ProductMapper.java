@@ -21,6 +21,7 @@ public interface ProductMapper {
 
     @Mapping(source = "category.id",   target = "categoryId")
     @Mapping(source = "category.name", target = "categoryName")
+    @Mapping(source = "active",        target = "isActive")
     @Mapping(target = "stockStatus",      ignore = true)
     @Mapping(target = "availableQuantity", ignore = true)
     ProductResponse toResponse(Product product);

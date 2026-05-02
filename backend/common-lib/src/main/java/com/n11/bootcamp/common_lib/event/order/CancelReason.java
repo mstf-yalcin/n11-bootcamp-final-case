@@ -4,5 +4,6 @@ public enum CancelReason {
     STOCK_UNAVAILABLE,
     PAYMENT_FAILED,
     USER_CANCELLED,
+    ADMIN_CANCELLED,
     TIMEOUT
 }

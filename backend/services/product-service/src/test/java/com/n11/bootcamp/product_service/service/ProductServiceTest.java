@@ -70,7 +70,7 @@ class ProductServiceTest {
                 productId, "headphones", "Headphones", null,
                 BigDecimal.valueOf(999.99), "TRY", 0, BigDecimal.ZERO,
                 null, Set.of(), categoryId, "Electronics", null, null,
-                null, null
+                null, null, true
         );
     }
 

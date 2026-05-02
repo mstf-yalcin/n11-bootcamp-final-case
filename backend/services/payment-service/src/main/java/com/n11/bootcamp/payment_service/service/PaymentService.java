@@ -8,10 +8,12 @@ import com.n11.bootcamp.common_lib.event.order.OrderCancelledPayload;
 import com.n11.bootcamp.common_lib.event.order.OrderCreatedPayload;
 import com.n11.bootcamp.common_lib.event.order.OrderEventItem;
 import com.n11.bootcamp.common_lib.event.payment.PaymentEventPayload;
+import com.n11.bootcamp.payment_service.dto.request.AdminRefundRequest;
 import com.n11.bootcamp.payment_service.dto.response.PaymentResponse;
 import com.n11.bootcamp.payment_service.entity.OutboxEvent;
 import com.n11.bootcamp.payment_service.entity.Payment;
 import com.n11.bootcamp.payment_service.entity.PaymentStatus;
+import com.n11.bootcamp.payment_service.exception.InvalidRefundStateException;
 import com.n11.bootcamp.payment_service.exception.PaymentNotFoundException;
 import com.n11.bootcamp.payment_service.gateway.PaymentGateway;
 import com.n11.bootcamp.payment_service.gateway.PaymentGatewayRequest;
@@ -26,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -65,6 +68,71 @@ public class PaymentService {
         return paymentRepository
                 .findAllByUserIdAndIsActiveTrueOrderByCreatedAtDesc(userId, pageable)
                 .map(paymentMapper::toResponse);
+    }
+
+    public Page<PaymentResponse> searchAdminPayments(PaymentStatus status, UUID userId,
+                                                     Instant from, Instant to,
+                                                     String search, Pageable pageable) {
+        String pattern = (search != null && !search.isBlank())
+                ? "%" + search.toLowerCase().trim() + "%"
+                : null;
+        UUID searchUuid = tryParseUuid(search);
+        return paymentRepository
+                .searchAdminPayments(status, userId, from, to, pattern, searchUuid, pageable)
+                .map(paymentMapper::toResponse);
+    }
+
+    private static UUID tryParseUuid(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return UUID.fromString(value.trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Transactional
+    public PaymentResponse adminRefund(UUID orderId, AdminRefundRequest request) {
+        Payment payment = paymentRepository.findByOrderIdAndIsActiveTrue(orderId)
+                .orElseThrow(() -> new PaymentNotFoundException(orderId));
+
+        if (payment.getStatus() != PaymentStatus.COMPLETED) {
+            throw new InvalidRefundStateException(payment.getStatus());
+        }
+
+        String correlationId = payment.getCorrelationId();
+        String reason = (request != null && request.reason() != null && !request.reason().isBlank())
+                ? request.reason()
+                : "Admin manual refund";
+
+        log.warn("Admin refund triggered: orderId={}, providerPaymentId={}, amount={} {}, reason={}",
+                orderId, payment.getProviderPaymentId(), payment.getAmount(), payment.getCurrency(), reason);
+
+        PaymentGatewayResult refund = paymentGateway.refund(
+                orderId, payment.getProviderPaymentId(), payment.getAmount(), correlationId);
+
+        if (!refund.success()) {
+            log.error("Admin refund FAILED: orderId={}, errorCode={}, errorMessage={}",
+                    orderId, refund.errorCode(), refund.errorMessage());
+            throw new InvalidRefundStateException(
+                    "Refund failed at provider: " + refund.errorMessage());
+        }
+
+        payment.setStatus(PaymentStatus.REFUNDED);
+        payment.setErrorCode("ADMIN_REFUND");
+        payment.setErrorMessage(reason);
+        paymentRepository.save(payment);
+
+        publishOutbox(
+                EventType.PAYMENT_REFUNDED,
+                orderId.toString(),
+                new PaymentEventPayload(orderId, payment.getId(),
+                        PaymentStatus.REFUNDED.name(), "Admin refund: " + reason),
+                correlationId
+        );
+        log.info("Admin refund COMPLETED: orderId={}, providerPaymentId={}",
+                orderId, payment.getProviderPaymentId());
+        return paymentMapper.toResponse(payment);
     }
 
     @Transactional
@@ -150,7 +218,8 @@ public class PaymentService {
             case PENDING -> {
                 payment.setStatus(PaymentStatus.CANCELLED);
                 payment.setErrorCode("ORDER_CANCELLED");
-                payment.setErrorMessage("Cancelled by user before charge: reason=" + cancelled.cancelReason());
+                payment.setErrorMessage("Ödeme alınmadan önce iptal edildi. Sebep: "
+                        + cancelReasonLabel(cancelled.cancelReason()));
                 paymentRepository.save(payment);
                 log.info("Payment CANCELLED before charge: orderId={}, reason={}", orderId, cancelled.cancelReason());
             }
@@ -173,14 +242,15 @@ public class PaymentService {
         if (refund.success()) {
             payment.setStatus(PaymentStatus.REFUNDED);
             payment.setErrorCode("ORDER_CANCELLED");
-            payment.setErrorMessage("Refunded after user cancellation: reason=" + cancelled.cancelReason());
+            payment.setErrorMessage("Sipariş iptali sonrası iade edildi. Sebep: "
+                    + cancelReasonLabel(cancelled.cancelReason()));
             paymentRepository.save(payment);
 
             publishOutbox(
                     EventType.PAYMENT_REFUNDED,
                     orderId.toString(),
                     new PaymentEventPayload(orderId, payment.getId(), PaymentStatus.REFUNDED.name(),
-                            "User cancellation: " + cancelled.cancelReason()),
+                            "Sipariş iptali: " + cancelReasonLabel(cancelled.cancelReason())),
                     correlationId
             );
             log.info("Payment REFUNDED: orderId={}, providerPaymentId={}", orderId, payment.getProviderPaymentId());
@@ -307,6 +377,18 @@ public class PaymentService {
         return items.stream()
                 .map(item -> item.unitPrice().multiply(BigDecimal.valueOf(item.quantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private static String cancelReasonLabel(String reason) {
+        if (reason == null) return "Belirtilmedi";
+        return switch (reason) {
+            case "USER_CANCELLED" -> "Kullanıcı iptali";
+            case "ADMIN_CANCELLED" -> "Yönetici iptali";
+            case "STOCK_UNAVAILABLE" -> "Stok yetersiz";
+            case "PAYMENT_FAILED" -> "Ödeme başarısız";
+            case "TIMEOUT" -> "Zaman aşımı";
+            default -> reason;
+        };
     }
 
     private void publishOutbox(EventType eventType, String aggregateId,

@@ -11,7 +11,7 @@ import org.mapstruct.MappingConstants;
 
 import java.util.List;
 
-@Mapper(componentModel = MappingConstants.ComponentModel.SPRING)
+@Mapper(componentModel = MappingConstants.ComponentModel.SPRING, imports = OrderMapperHelper.class)
 public interface OrderMapper {
 
     @Mapping(target = "subtotal", expression = "java(item.getSubtotal())")
@@ -19,6 +19,7 @@ public interface OrderMapper {
 
     List<OrderItemResponse> toItemResponses(List<OrderItem> items);
 
+    @Mapping(target = "buyerFullName", expression = "java(OrderMapperHelper.joinName(order.getBuyerFirstName(), order.getBuyerLastName()))")
     OrderResponse toResponse(Order order);
 
     @Mapping(target = "productId", source = "productId")

@@ -57,6 +57,10 @@ management:
     web:
       exposure:
         include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
   metrics:
     tags:
       application: ${spring.application.name}
@@ -67,10 +71,10 @@ logging:
 
 payment:
   # mode: mock | sandbox  (mock = no Iyzico call, auto-success; sandbox = real Iyzico sandbox API)
-  mode: ${PAYMENT_MODE:mock}
+  mode: ${PAYMENT_MODE:sandbox}
   iyzico:
-    api-key: ${IYZICO_API_KEY:sandbox-api-key}
-    secret-key: ${IYZICO_SECRET_KEY:sandbox-secret-key}
+    api-key: ${IYZICO_API_KEY:your-iyzico-api-key}
+    secret-key: ${IYZICO_SECRET_KEY:your-iyzico-secret-key}
     base-url: ${IYZICO_BASE_URL:https://sandbox-api.iyzipay.com}
     # Test card that always succeeds in Iyzico sandbox (Halkbank Master Credit)
     test-card:

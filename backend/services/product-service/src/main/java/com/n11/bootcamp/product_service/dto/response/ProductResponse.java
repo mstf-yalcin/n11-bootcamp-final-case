@@ -21,14 +21,15 @@ public record ProductResponse(
         Instant createdAt,
         Instant updatedAt,
         String stockStatus,
-        Integer availableQuantity
+        Integer availableQuantity,
+        boolean isActive
 ) {
     public ProductResponse withStock(String stockStatus, Integer availableQuantity) {
         return new ProductResponse(
                 id, slug, name, description, price, currency,
                 ratingCount, ratingAverage, imageUrl, tags,
                 categoryId, categoryName, createdAt, updatedAt,
-                stockStatus, availableQuantity
+                stockStatus, availableQuantity, isActive
         );
     }
 }

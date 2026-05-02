@@ -81,6 +81,44 @@ public class ProductService {
         });
     }
 
+    public Page<ProductResponse> getAdminProducts(UUID categoryId, BigDecimal minPrice, BigDecimal maxPrice,
+                                                  String search, boolean includeInactive, Pageable pageable) {
+        log.info("Admin listing products: categoryId={}, minPrice={}, maxPrice={}, search={}, includeInactive={}, page={}",
+                categoryId, minPrice, maxPrice, search, includeInactive, pageable.getPageNumber());
+        String searchPattern = (search != null && !search.isBlank())
+                ? "%" + search.toLowerCase() + "%"
+                : null;
+        Page<ProductResponse> page = productRepository
+                .findAdminWithFilters(categoryId, minPrice, maxPrice, searchPattern, includeInactive, pageable)
+                .map(productMapper::toResponse);
+
+        List<UUID> ids = page.getContent().stream().map(ProductResponse::id).toList();
+        Map<UUID, StockAvailabilityClientResponse> stockMap = stockAvailabilityCache.getAvailabilityMap(ids);
+
+        return page.map(p -> {
+            StockAvailabilityClientResponse avail = stockMap.get(p.id());
+            if (avail == null) {
+                return p.withStock("UNKNOWN", null);
+            }
+            return p.withStock(avail.status(), avail.available());
+        });
+    }
+
+    @Transactional
+    public ProductResponse restoreProduct(UUID id) {
+        log.info("Restoring product: id={}", id);
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ProductNotFoundException(id));
+        if (product.isActive()) {
+            log.info("Product already active, no-op: id={}", id);
+        } else {
+            product.setActive(true);
+            productRepository.save(product);
+            log.info("Product restored: id={}", id);
+        }
+        return enrichWithStock(productMapper.toResponse(product));
+    }
+
     public ProductResponse getProductById(UUID id) {
         log.info("Fetching product: id={}", id);
         Product product = productRepository.findByIdAndIsActiveTrue(id)

@@ -22,6 +22,7 @@ import com.n11.bootcamp.order_service.client.dto.CartItemClientResponse;
 import com.n11.bootcamp.order_service.client.dto.CheckoutContextClientResponse;
 import com.n11.bootcamp.order_service.client.dto.ProductClientResponse;
 import com.n11.bootcamp.order_service.client.dto.UserInfoClientResponse;
+import com.n11.bootcamp.order_service.dto.request.AdminUpdateOrderStatusRequest;
 import com.n11.bootcamp.order_service.dto.request.CreateOrderRequest;
 import com.n11.bootcamp.order_service.dto.response.OrderResponse;
 import com.n11.bootcamp.order_service.entity.Order;
@@ -39,6 +40,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -87,6 +89,84 @@ public class OrderService {
         return orderRepository
                 .findAllByUserIdAndIsActiveTrueOrderByCreatedAtDesc(userId, pageable)
                 .map(orderMapper::toResponse);
+    }
+
+    public Page<OrderResponse> searchAdminOrders(OrderStatus status, UUID userId,
+                                                 Instant from, Instant to,
+                                                 String search, Pageable pageable) {
+        String pattern = (search != null && !search.isBlank())
+                ? "%" + search.toLowerCase().trim() + "%"
+                : null;
+        UUID searchUuid = tryParseUuid(search);
+        return orderRepository
+                .searchAdminOrders(status, userId, from, to, pattern, searchUuid, pageable)
+                .map(orderMapper::toResponse);
+    }
+
+    private static UUID tryParseUuid(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return UUID.fromString(value.trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public OrderResponse getAdminOrder(UUID orderId) {
+        Order order = orderRepository.findByIdAndIsActiveTrue(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+        return orderMapper.toResponse(order);
+    }
+
+    @Transactional
+    public OrderResponse adminCancelOrder(UUID orderId, String note) {
+        Order order = orderRepository.findByIdAndIsActiveTrue(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        OrderStatus status = order.getStatus();
+        boolean cancellable = status == OrderStatus.PENDING
+                || status == OrderStatus.STOCK_RESERVED
+                || status == OrderStatus.CONFIRMED;
+        if (!cancellable) {
+            throw new InvalidOrderStateException(status, "admin-cancel");
+        }
+
+        String correlationId = MDC.get("correlationId");
+        cancelOrderInternal(order, CancelReason.ADMIN_CANCELLED, correlationId);
+        log.info("Admin cancelled order: orderId={}, prevStatus={}, note={}, correlationId={}",
+                orderId, status, note, correlationId);
+        return orderMapper.toResponse(order);
+    }
+
+    @Transactional
+    public OrderResponse adminUpdateStatus(UUID orderId, AdminUpdateOrderStatusRequest request) {
+        Order order = orderRepository.findByIdAndIsActiveTrue(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+        OrderStatus current = order.getStatus();
+        OrderStatus next = request.status();
+        String correlationId = MDC.get("correlationId");
+
+        if (current == next) {
+            log.info("Admin status update is a no-op: orderId={}, status={}", orderId, current);
+            return orderMapper.toResponse(order);
+        }
+
+        if (next == OrderStatus.SHIPPED && current == OrderStatus.CONFIRMED) {
+            order.setStatus(OrderStatus.SHIPPED);
+        } else if (next == OrderStatus.DELIVERED && current == OrderStatus.SHIPPED) {
+            order.setStatus(OrderStatus.DELIVERED);
+        } else if (next == OrderStatus.CANCELLED
+                && (current == OrderStatus.PENDING
+                    || current == OrderStatus.STOCK_RESERVED
+                    || current == OrderStatus.CONFIRMED)) {
+            cancelOrderInternal(order, CancelReason.ADMIN_CANCELLED, correlationId);
+        } else {
+            throw new InvalidOrderStateException(current, "admin-transition-to-" + next);
+        }
+
+        log.info("Admin updated order status: orderId={}, from={}, to={}, note={}, correlationId={}",
+                orderId, current, next, request.note(), correlationId);
+        return orderMapper.toResponse(order);
     }
 
     @Transactional
