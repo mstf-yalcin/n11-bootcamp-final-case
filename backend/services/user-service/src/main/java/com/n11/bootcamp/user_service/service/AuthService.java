@@ -52,12 +52,12 @@ public class AuthService {
     public TokenResponse register(RegisterRequest authRequest) {
 
         if (userRepository.existsByEmail(authRequest.email())) {
-            throw new EmailAlreadyExistsException(authRequest.email());
+            throw new EmailAlreadyExistsException();
         }
 
         String normalizedPhone = PhoneNormalizer.ensureCountryCode(authRequest.phone());
         if (normalizedPhone != null && userRepository.existsByPhone(normalizedPhone)) {
-            throw new PhoneAlreadyExistsException(normalizedPhone);
+            throw new PhoneAlreadyExistsException();
         }
 
         User user = new User();
