@@ -13,5 +13,9 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
 
     Optional<Category> findByIdAndIsActiveTrue(UUID id);
 
+    Optional<Category> findBySlugAndIsActiveTrue(String slug);
+
     boolean existsByNameAndIsActiveTrue(String name);
+
+    boolean existsBySlug(String slug);
 }

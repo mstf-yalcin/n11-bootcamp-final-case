@@ -6,6 +6,6 @@ import org.springframework.http.HttpStatus;
 public class SlugAlreadyExistsException extends BaseException {
 
     public SlugAlreadyExistsException(String slug) {
-        super("Product with slug '" + slug + "' already exists", "SLUG_ALREADY_EXISTS", HttpStatus.CONFLICT);
+        super("Slug '" + slug + "' already exists", "SLUG_ALREADY_EXISTS", HttpStatus.CONFLICT);
     }
 }

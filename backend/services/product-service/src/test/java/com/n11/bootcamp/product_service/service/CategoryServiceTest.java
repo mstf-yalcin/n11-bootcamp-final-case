@@ -44,7 +44,7 @@ class CategoryServiceTest {
         category.setName("Electronics");
         category.setDescription("Electronic products");
 
-        categoryResponse = new CategoryResponse(categoryId, "Electronics", "Electronic products", null, null);
+        categoryResponse = new CategoryResponse(categoryId, "Electronics", "electronics", "Electronic products", null, null);
     }
 
     @Test
@@ -72,6 +72,7 @@ class CategoryServiceTest {
         CreateCategoryRequest request = new CreateCategoryRequest("Electronics", "Electronic products");
 
         when(categoryMapper.toEntity(request)).thenReturn(category);
+        when(categoryRepository.existsBySlug("electronics")).thenReturn(false);
         when(categoryRepository.save(category)).thenReturn(category);
         when(categoryMapper.toResponse(category)).thenReturn(categoryResponse);
 
@@ -79,7 +80,19 @@ class CategoryServiceTest {
 
         assertThat(result).isNotNull();
         assertThat(result.name()).isEqualTo("Electronics");
+        assertThat(category.getSlug()).isEqualTo("electronics");
         verify(categoryRepository).save(category);
+    }
+
+    @Test
+    void testCreateCategory_when_slugCollision_throwsSlugAlreadyExistsException() {
+        CreateCategoryRequest request = new CreateCategoryRequest("Electronics", "Electronic products");
+
+        when(categoryMapper.toEntity(request)).thenReturn(category);
+        when(categoryRepository.existsBySlug("electronics")).thenReturn(true);
+
+        assertThatThrownBy(() -> categoryService.createCategory(request))
+                .isInstanceOf(com.n11.bootcamp.product_service.exception.SlugAlreadyExistsException.class);
     }
 
     @Test

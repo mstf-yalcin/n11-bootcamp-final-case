@@ -10,11 +10,13 @@ import org.mapstruct.MappingTarget;
 @Mapper(componentModel = "spring")
 public interface CategoryMapper {
 
+    @Mapping(target = "slug", ignore = true)
     Category toEntity(CreateCategoryRequest request);
 
     CategoryResponse toResponse(Category category);
 
     @Mapping(target = "id",        ignore = true)
+    @Mapping(target = "slug",      ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "active",    ignore = true)

@@ -26,6 +26,9 @@ public class Category extends BaseEntity {
     @Column(unique = true, nullable = false)
     private String name;
 
+    @Column(unique = true, length = 120)
+    private String slug;
+
     @Column(columnDefinition = "TEXT")
     private String description;
 }
