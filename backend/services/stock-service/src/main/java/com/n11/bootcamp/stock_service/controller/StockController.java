@@ -4,6 +4,7 @@ import com.n11.bootcamp.common_lib.dto.response.ApiResponse;
 import com.n11.bootcamp.stock_service.dto.request.CreateStockRequest;
 import com.n11.bootcamp.stock_service.dto.request.UpdateStockRequest;
 import com.n11.bootcamp.stock_service.dto.response.ReservationResponse;
+import com.n11.bootcamp.stock_service.dto.response.StockAvailabilityResponse;
 import com.n11.bootcamp.stock_service.dto.response.StockResponse;
 import com.n11.bootcamp.stock_service.service.StockService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -38,6 +40,13 @@ public class StockController {
     @Operation(summary = "List all active stock entries (admin)")
     public ResponseEntity<ApiResponse<List<StockResponse>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(stockService.getAll(), "Stocks fetched"));
+    }
+
+    @GetMapping("/availability")
+    @Operation(summary = "Batch availability check (used by product-service / cart-service)")
+    public ResponseEntity<ApiResponse<List<StockAvailabilityResponse>>> getAvailability(
+            @RequestParam("productIds") List<UUID> productIds) {
+        return ResponseEntity.ok(ApiResponse.success(stockService.getAvailability(productIds), "Stock Availability fetched"));
     }
 
     @GetMapping("/{productId}")

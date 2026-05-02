@@ -8,6 +8,8 @@ public record ProductClientResponse(
         String name,
         BigDecimal price,
         String currency,
-        String imageUrl
+        String imageUrl,
+        String stockStatus,
+        Integer availableQuantity
 ) {
 }

@@ -18,6 +18,8 @@ public interface StockRepository extends JpaRepository<Stock, UUID> {
 
     List<Stock> findAllByIsActiveTrue();
 
+    List<Stock> findAllByProductIdInAndIsActiveTrue(List<UUID> productIds);
+
     boolean existsByProductIdAndIsActiveTrue(UUID productId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

@@ -5,7 +5,6 @@ import com.n11.bootcamp.product_service.dto.response.TagResponse;
 import com.n11.bootcamp.product_service.entity.Tag;
 import com.n11.bootcamp.product_service.mapper.TagMapper;
 import com.n11.bootcamp.product_service.repository.TagRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;

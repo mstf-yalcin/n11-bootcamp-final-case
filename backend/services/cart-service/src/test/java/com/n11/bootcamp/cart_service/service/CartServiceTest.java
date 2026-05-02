@@ -1,7 +1,9 @@
 package com.n11.bootcamp.cart_service.service;
 
 import com.n11.bootcamp.cart_service.client.ProductClient;
+import com.n11.bootcamp.cart_service.client.StockClient;
 import com.n11.bootcamp.cart_service.client.dto.ProductClientResponse;
+import com.n11.bootcamp.cart_service.client.dto.StockAvailabilityClientResponse;
 import com.n11.bootcamp.cart_service.dto.internal.CartData;
 import com.n11.bootcamp.cart_service.dto.internal.CartItemData;
 import com.n11.bootcamp.cart_service.dto.request.AddItemRequest;
@@ -15,9 +17,10 @@ import com.n11.bootcamp.common_lib.dto.response.ApiResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -36,7 +39,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class CartServiceTest {
+
+    private static final int MAX_QTY_PER_ITEM = 10;
 
     @Mock
     private RedisTemplate<String, CartData> redisTemplate;
@@ -47,7 +53,9 @@ class CartServiceTest {
     @Mock
     private ProductClient productClient;
 
-    @InjectMocks
+    @Mock
+    private StockClient stockClient;
+
     private CartService cartService;
 
     private UUID userId;
@@ -58,7 +66,20 @@ class CartServiceTest {
     void setUp() {
         userId = UUID.randomUUID();
         productId = UUID.randomUUID();
-        product = new ProductClientResponse(productId, "Test Product", BigDecimal.valueOf(100), "TRY", "http://img.jpg");
+        product = new ProductClientResponse(
+                productId, "Test Product", BigDecimal.valueOf(100),
+                "TRY", "http://img.jpg",
+                "IN_STOCK", 100
+        );
+
+        cartService = new CartService(redisTemplate, productClient, stockClient, MAX_QTY_PER_ITEM);
+
+        // addItem/updateItem stock check'lerini geçmesi için yeterli stok dön
+        when(stockClient.getAvailability(any())).thenReturn(
+                new ApiResponse<>(true,
+                        List.of(new StockAvailabilityClientResponse(productId, 100, "IN_STOCK")),
+                        null, null, null, null)
+        );
     }
 
     private void mockRedis(CartData cart) {

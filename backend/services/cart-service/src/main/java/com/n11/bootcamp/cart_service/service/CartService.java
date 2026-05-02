@@ -1,7 +1,9 @@
 package com.n11.bootcamp.cart_service.service;
 
 import com.n11.bootcamp.cart_service.client.ProductClient;
+import com.n11.bootcamp.cart_service.client.StockClient;
 import com.n11.bootcamp.cart_service.client.dto.ProductClientResponse;
+import com.n11.bootcamp.cart_service.client.dto.StockAvailabilityClientResponse;
 import com.n11.bootcamp.cart_service.dto.internal.CartData;
 import com.n11.bootcamp.cart_service.dto.internal.CartItemData;
 import com.n11.bootcamp.cart_service.dto.request.AddItemRequest;
@@ -11,9 +13,12 @@ import com.n11.bootcamp.cart_service.dto.response.CartItemResponse;
 import com.n11.bootcamp.cart_service.dto.response.CartResponse;
 import com.n11.bootcamp.cart_service.dto.response.MergeCartResponse;
 import com.n11.bootcamp.cart_service.exception.CartItemNotFoundException;
+import com.n11.bootcamp.cart_service.exception.CartItemQuantityLimitExceededException;
+import com.n11.bootcamp.cart_service.exception.InsufficientStockException;
 import com.n11.bootcamp.cart_service.exception.ProductNotFoundException;
-import lombok.RequiredArgsConstructor;
+import com.n11.bootcamp.common_lib.dto.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -36,10 +41,17 @@ public class CartService {
 
     private final RedisTemplate<String, CartData> redisTemplate;
     private final ProductClient productClient;
+    private final StockClient stockClient;
+    private final int maxQuantityPerItem;
 
-    public CartService(RedisTemplate<String, CartData> redisTemplate, ProductClient productClient) {
+    public CartService(RedisTemplate<String, CartData> redisTemplate,
+                       ProductClient productClient,
+                       StockClient stockClient,
+                       @Value("${app.cart.max-quantity-per-item:10}") int maxQuantityPerItem) {
         this.redisTemplate = redisTemplate;
         this.productClient = productClient;
+        this.stockClient = stockClient;
+        this.maxQuantityPerItem = maxQuantityPerItem;
     }
 
     public CartResponse getCart(UUID userId) {
@@ -63,12 +75,21 @@ public class CartService {
         }
         CartData cart = readCart(userId);
 
+        int currentInCart = cart.items().stream()
+                .filter(i -> i.productId().equals(request.productId()))
+                .mapToInt(CartItemData::quantity)
+                .findFirst()
+                .orElse(0);
+        int desiredTotal = currentInCart + request.quantity();
+        ensureWithinCartLimit(request.productId(), desiredTotal);
+        ensureStockAvailable(request.productId(), desiredTotal);
+
         List<CartItemData> items = new ArrayList<>(cart.items());
         boolean exists = false;
 
         for (int i = 0; i < items.size(); i++) {
             if (items.get(i).productId().equals(request.productId())) {
-                items.set(i, new CartItemData(request.productId(), items.get(i).quantity() + request.quantity()));
+                items.set(i, new CartItemData(request.productId(), desiredTotal));
                 exists = true;
                 break;
             }
@@ -90,19 +111,20 @@ public class CartService {
         log.info("Updating item: userId={}, productId={}, qty={}", userId, productId, request.quantity());
         CartData cart = readCart(userId);
 
-        List<CartItemData> items = new ArrayList<>(cart.items());
-        boolean found = false;
+        boolean exists = cart.items().stream().anyMatch(i -> i.productId().equals(productId));
+        if (!exists) {
+            throw new CartItemNotFoundException(productId);
+        }
 
+        ensureWithinCartLimit(productId, request.quantity());
+        ensureStockAvailable(productId, request.quantity());
+
+        List<CartItemData> items = new ArrayList<>(cart.items());
         for (int i = 0; i < items.size(); i++) {
             if (items.get(i).productId().equals(productId)) {
                 items.set(i, new CartItemData(productId, request.quantity()));
-                found = true;
                 break;
             }
-        }
-
-        if (!found) {
-            throw new CartItemNotFoundException(productId);
         }
 
         CartData updated = new CartData(userId, items, Instant.now());
@@ -110,6 +132,23 @@ public class CartService {
 
         List<ProductClientResponse> products = fetchProducts(items.stream().map(CartItemData::productId).toList());
         return buildCartResponse(updated, products);
+    }
+
+    private void ensureWithinCartLimit(UUID productId, int desiredQuantity) {
+        if (desiredQuantity > maxQuantityPerItem) {
+            throw new CartItemQuantityLimitExceededException(productId, desiredQuantity, maxQuantityPerItem);
+        }
+    }
+
+    private void ensureStockAvailable(UUID productId, int desiredQuantity) {
+        ApiResponse<List<StockAvailabilityClientResponse>> response = stockClient.getAvailability(List.of(productId));
+        StockAvailabilityClientResponse avail = (response != null && response.data() != null)
+                ? response.data().stream().findFirst().orElse(null)
+                : null;
+        int available = avail != null ? avail.available() : 0;
+        if (desiredQuantity > available) {
+            throw new InsufficientStockException(productId, desiredQuantity, available);
+        }
     }
 
     public CartResponse removeItem(UUID userId, UUID productId) {
@@ -156,13 +195,15 @@ public class CartService {
             boolean found = false;
             for (int i = 0; i < items.size(); i++) {
                 if (items.get(i).productId().equals(incoming.productId())) {
-                    items.set(i, new CartItemData(incoming.productId(), items.get(i).quantity() + incoming.quantity()));
+                    int merged = Math.min(items.get(i).quantity() + incoming.quantity(), maxQuantityPerItem);
+                    items.set(i, new CartItemData(incoming.productId(), merged));
                     found = true;
                     break;
                 }
             }
             if (!found) {
-                items.add(new CartItemData(incoming.productId(), incoming.quantity()));
+                int capped = Math.min(incoming.quantity(), maxQuantityPerItem);
+                items.add(new CartItemData(incoming.productId(), capped));
             }
         }
 
@@ -214,7 +255,8 @@ public class CartService {
                     if (product == null) {
                         return new CartItemResponse(
                                 item.productId(), null, null,
-                                null, null, item.quantity(), null);
+                                null, null, item.quantity(), null,
+                                "UNKNOWN", null);
                     }
                     BigDecimal subtotal = product.price() != null
                             ? product.price().multiply(BigDecimal.valueOf(item.quantity()))
@@ -226,7 +268,9 @@ public class CartService {
                             product.price(),
                             product.currency(),
                             item.quantity(),
-                            subtotal);
+                            subtotal,
+                            product.stockStatus() != null ? product.stockStatus() : "UNKNOWN",
+                            product.availableQuantity());
                 })
                 .toList();
 

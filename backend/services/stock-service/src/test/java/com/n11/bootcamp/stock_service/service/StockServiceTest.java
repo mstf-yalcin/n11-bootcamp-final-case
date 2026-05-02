@@ -16,10 +16,10 @@ import com.n11.bootcamp.stock_service.mapper.StockMapper;
 import com.n11.bootcamp.stock_service.repository.StockRepository;
 import com.n11.bootcamp.stock_service.repository.OutboxEventRepository;
 import com.n11.bootcamp.stock_service.repository.StockReservationRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -51,8 +51,19 @@ class StockServiceTest {
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
-    @InjectMocks
     private StockService stockService;
+
+    @BeforeEach
+    void setUp() {
+        stockService = new StockService(
+                stockRepository,
+                reservationRepository,
+                outboxEventRepository,
+                stockMapper,
+                objectMapper,
+                5  // lowStockThreshold (default)
+        );
+    }
 
     @Test
     void testCreateStock_when_productIdNew_returnsStockResponse() {
@@ -121,7 +132,8 @@ class StockServiceTest {
 
         OrderCreatedPayload order = new OrderCreatedPayload(
                 orderId, UUID.randomUUID(),
-                List.of(new OrderEventItem(productId, 5, BigDecimal.valueOf(50)))
+                List.of(new OrderEventItem(productId, 5, BigDecimal.valueOf(50))),
+                null, null
         );
 
         when(stockRepository.findAllByProductIdInForUpdate(List.of(productId))).thenReturn(List.of(stock));
@@ -149,7 +161,8 @@ class StockServiceTest {
 
         OrderCreatedPayload order = new OrderCreatedPayload(
                 orderId, UUID.randomUUID(),
-                List.of(new OrderEventItem(productId, 10, BigDecimal.valueOf(50)))
+                List.of(new OrderEventItem(productId, 10, BigDecimal.valueOf(50))),
+                null, null
         );
 
         when(stockRepository.findAllByProductIdInForUpdate(List.of(productId))).thenReturn(List.of(stock));
@@ -170,7 +183,8 @@ class StockServiceTest {
 
         OrderCreatedPayload order = new OrderCreatedPayload(
                 orderId, UUID.randomUUID(),
-                List.of(new OrderEventItem(productId, 1, BigDecimal.valueOf(50)))
+                List.of(new OrderEventItem(productId, 1, BigDecimal.valueOf(50))),
+                null, null
         );
 
         when(stockRepository.findAllByProductIdInForUpdate(List.of(productId))).thenReturn(List.of());

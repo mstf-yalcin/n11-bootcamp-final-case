@@ -30,6 +30,11 @@ spring:
         - classpath:db/seed/02_products.sql
         - classpath:db/seed/03_tags.sql
         - classpath:db/seed/04_product_tag_mappings.sql
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
   security:
     oauth2:
       resourceserver:
@@ -63,3 +68,31 @@ management:
 logging:
   pattern:
     level: "%5p [${spring.application.name},%X{correlationId}]"
+
+feign:
+  circuitbreaker:
+    enabled: true
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      stock-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+  retry:
+    instances:
+      stock-service:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - feign.RetryableException
+          - java.io.IOException
+        ignoreExceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+
+app:
+  stock:
+    cache-ttl-seconds: ${STOCK_CACHE_TTL_SECONDS:60}

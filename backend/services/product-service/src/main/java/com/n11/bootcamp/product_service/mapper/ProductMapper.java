@@ -21,6 +21,8 @@ public interface ProductMapper {
 
     @Mapping(source = "category.id",   target = "categoryId")
     @Mapping(source = "category.name", target = "categoryName")
+    @Mapping(target = "stockStatus",      ignore = true)
+    @Mapping(target = "availableQuantity", ignore = true)
     ProductResponse toResponse(Product product);
 
     @Mapping(target = "category",      ignore = true)
@@ -29,5 +31,9 @@ public interface ProductMapper {
     @Mapping(target = "ratingCount",   ignore = true)
     @Mapping(target = "ratingAverage", ignore = true)
     @Mapping(target = "tags",          ignore = true)
+    @Mapping(target = "id",            ignore = true)
+    @Mapping(target = "createdAt",     ignore = true)
+    @Mapping(target = "updatedAt",     ignore = true)
+    @Mapping(target = "active",        ignore = true)
     void updateEntity(UpdateProductRequest request, @MappingTarget Product product);
 }

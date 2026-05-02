@@ -23,6 +23,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(SecurityPaths.SWAGGER).permitAll()
                         .requestMatchers(SecurityPaths.ACTUATOR_PUBLIC).permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/stocks/availability").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/stocks/**").authenticated()
 //                        .requestMatchers(HttpMethod.POST, "/api/v1/stocks/**").hasAuthority("ROLE_ADMIN")
 //                        .requestMatchers(HttpMethod.PUT, "/api/v1/stocks/**").hasAuthority("ROLE_ADMIN")

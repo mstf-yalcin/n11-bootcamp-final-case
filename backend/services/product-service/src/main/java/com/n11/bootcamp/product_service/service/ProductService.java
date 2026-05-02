@@ -1,5 +1,8 @@
 package com.n11.bootcamp.product_service.service;
 
+import com.n11.bootcamp.common_lib.dto.response.ApiResponse;
+import com.n11.bootcamp.product_service.client.StockClient;
+import com.n11.bootcamp.product_service.client.dto.StockAvailabilityClientResponse;
 import com.n11.bootcamp.product_service.dto.request.CreateProductRequest;
 import com.n11.bootcamp.product_service.dto.request.UpdateProductRequest;
 import com.n11.bootcamp.product_service.dto.response.ProductResponse;
@@ -21,8 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.text.Normalizer;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -36,12 +41,21 @@ public class ProductService {
     private final CategoryRepository categoryRepository;
     private final TagRepository tagRepository;
     private final ProductMapper productMapper;
+    private final StockClient stockClient;
+    private final StockAvailabilityCache stockAvailabilityCache;
 
-    public ProductService(ProductRepository productRepository, CategoryRepository categoryRepository, TagRepository tagRepository, ProductMapper productMapper) {
+    public ProductService(ProductRepository productRepository,
+                          CategoryRepository categoryRepository,
+                          TagRepository tagRepository,
+                          ProductMapper productMapper,
+                          StockClient stockClient,
+                          StockAvailabilityCache stockAvailabilityCache) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.tagRepository = tagRepository;
         this.productMapper = productMapper;
+        this.stockClient = stockClient;
+        this.stockAvailabilityCache = stockAvailabilityCache;
     }
 
     public Page<ProductResponse> getProducts(UUID categoryId, BigDecimal minPrice, BigDecimal maxPrice,
@@ -51,30 +65,81 @@ public class ProductService {
         String searchPattern = (search != null && !search.isBlank())
                 ? "%" + search.toLowerCase() + "%"
                 : null;
-        return productRepository.findWithFilters(categoryId, minPrice, maxPrice, searchPattern, pageable)
+        Page<ProductResponse> page = productRepository
+                .findWithFilters(categoryId, minPrice, maxPrice, searchPattern, pageable)
                 .map(productMapper::toResponse);
+
+        List<UUID> ids = page.getContent().stream().map(ProductResponse::id).toList();
+        Map<UUID, StockAvailabilityClientResponse> stockMap = stockAvailabilityCache.getAvailabilityMap(ids);
+
+        return page.map(p -> {
+            StockAvailabilityClientResponse avail = stockMap.get(p.id());
+            if (avail == null) {
+                return p.withStock("UNKNOWN", null);
+            }
+            return p.withStock(avail.status(), avail.available());
+        });
     }
 
     public ProductResponse getProductById(UUID id) {
         log.info("Fetching product: id={}", id);
         Product product = productRepository.findByIdAndIsActiveTrue(id)
                 .orElseThrow(() -> new ProductNotFoundException(id));
-        return productMapper.toResponse(product);
+        return enrichWithStock(productMapper.toResponse(product));
     }
 
     public ProductResponse getProductBySlug(String slug) {
         log.info("Fetching product: slug={}", slug);
         Product product = productRepository.findBySlugAndIsActiveTrue(slug)
                 .orElseThrow(() -> new ProductNotFoundException(slug));
-        return productMapper.toResponse(product);
+        return enrichWithStock(productMapper.toResponse(product));
     }
 
     public List<ProductResponse> getProductsByIds(List<UUID> ids) {
         log.info("Batch fetching products: ids={}", ids);
-        return productRepository.findAllByIdInAndIsActiveTrue(ids)
+        List<ProductResponse> responses = productRepository.findAllByIdInAndIsActiveTrue(ids)
                 .stream()
                 .map(productMapper::toResponse)
                 .toList();
+        return enrichWithStock(responses);
+    }
+
+    private ProductResponse enrichWithStock(ProductResponse response) {
+        Map<UUID, StockAvailabilityClientResponse> map = fetchAvailability(List.of(response.id()));
+        StockAvailabilityClientResponse avail = map.get(response.id());
+        if (avail == null) {
+            return response.withStock("UNKNOWN", null);
+        }
+        return response.withStock(avail.status(), avail.available());
+    }
+
+    private List<ProductResponse> enrichWithStock(List<ProductResponse> responses) {
+        if (responses.isEmpty()) {
+            return responses;
+        }
+        List<UUID> ids = responses.stream().map(ProductResponse::id).toList();
+        Map<UUID, StockAvailabilityClientResponse> map = fetchAvailability(ids);
+        return responses.stream()
+                .map(r -> {
+                    StockAvailabilityClientResponse avail = map.get(r.id());
+                    if (avail == null) {
+                        return r.withStock("UNKNOWN", null);
+                    }
+                    return r.withStock(avail.status(), avail.available());
+                })
+                .toList();
+    }
+
+    private Map<UUID, StockAvailabilityClientResponse> fetchAvailability(List<UUID> ids) {
+        ApiResponse<List<StockAvailabilityClientResponse>> response = stockClient.getAvailability(ids);
+        if (response == null || response.data() == null || response.data().isEmpty()) {
+            return new HashMap<>();
+        }
+        Map<UUID, StockAvailabilityClientResponse> map = new HashMap<>();
+        for (StockAvailabilityClientResponse item : response.data()) {
+            map.put(item.productId(), item);
+        }
+        return map;
     }
 
     public List<UUID> getExistingProductIds(List<UUID> ids) {

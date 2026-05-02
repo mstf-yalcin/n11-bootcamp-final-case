@@ -19,6 +19,16 @@ public record ProductResponse(
         UUID categoryId,
         String categoryName,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        String stockStatus,
+        Integer availableQuantity
 ) {
+    public ProductResponse withStock(String stockStatus, Integer availableQuantity) {
+        return new ProductResponse(
+                id, slug, name, description, price, currency,
+                ratingCount, ratingAverage, imageUrl, tags,
+                categoryId, categoryName, createdAt, updatedAt,
+                stockStatus, availableQuantity
+        );
+    }
 }

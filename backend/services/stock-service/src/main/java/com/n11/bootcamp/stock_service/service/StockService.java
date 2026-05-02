@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.n11.bootcamp.stock_service.dto.request.CreateStockRequest;
 import com.n11.bootcamp.stock_service.dto.request.UpdateStockRequest;
 import com.n11.bootcamp.stock_service.dto.response.ReservationResponse;
+import com.n11.bootcamp.stock_service.dto.response.StockAvailabilityResponse;
 import com.n11.bootcamp.stock_service.dto.response.StockResponse;
 import com.n11.bootcamp.stock_service.entity.OutboxEvent;
 import com.n11.bootcamp.stock_service.entity.ReservationStatus;
 import com.n11.bootcamp.stock_service.entity.Stock;
 import com.n11.bootcamp.stock_service.entity.StockReservation;
+import com.n11.bootcamp.stock_service.entity.StockStatus;
 import com.n11.bootcamp.common_lib.event.AggregateType;
 import com.n11.bootcamp.common_lib.event.EventType;
 import com.n11.bootcamp.common_lib.event.order.OrderCreatedPayload;
@@ -24,6 +26,7 @@ import com.n11.bootcamp.stock_service.repository.StockRepository;
 import com.n11.bootcamp.stock_service.repository.OutboxEventRepository;
 import com.n11.bootcamp.stock_service.repository.StockReservationRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,13 +45,20 @@ public class StockService {
     private final OutboxEventRepository outboxEventRepository;
     private final StockMapper stockMapper;
     private final ObjectMapper objectMapper;
+    private final int lowStockThreshold;
 
-    public StockService(StockRepository stockRepository, StockReservationRepository reservationRepository, OutboxEventRepository outboxEventRepository, StockMapper stockMapper, ObjectMapper objectMapper) {
+    public StockService(StockRepository stockRepository,
+                        StockReservationRepository reservationRepository,
+                        OutboxEventRepository outboxEventRepository,
+                        StockMapper stockMapper,
+                        ObjectMapper objectMapper,
+                        @Value("${app.stock.low-threshold:5}") int lowStockThreshold) {
         this.stockRepository = stockRepository;
         this.reservationRepository = reservationRepository;
         this.outboxEventRepository = outboxEventRepository;
         this.stockMapper = stockMapper;
         this.objectMapper = objectMapper;
+        this.lowStockThreshold = lowStockThreshold;
     }
 
     public List<StockResponse> getAll() {
@@ -62,6 +72,29 @@ public class StockService {
         Stock stock = stockRepository.findByProductIdAndIsActiveTrue(productId)
                 .orElseThrow(() -> new StockNotFoundException(productId));
         return stockMapper.toResponse(stock);
+    }
+
+    public List<StockAvailabilityResponse> getAvailability(List<UUID> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, Stock> stockMap = stockRepository.findAllByProductIdInAndIsActiveTrue(productIds)
+                .stream()
+                .collect(Collectors.toMap(Stock::getProductId, s -> s));
+
+        return productIds.stream()
+                .map(pid -> {
+                    Stock stock = stockMap.get(pid);
+                    int available = stock != null ? stock.getAvailable() : 0;
+                    return new StockAvailabilityResponse(pid, available, classify(available));
+                })
+                .toList();
+    }
+
+    private StockStatus classify(int available) {
+        if (available <= 0) return StockStatus.OUT_OF_STOCK;
+        if (available <= lowStockThreshold) return StockStatus.LOW_STOCK;
+        return StockStatus.IN_STOCK;
     }
 
     public List<ReservationResponse> getReservationsByOrderId(UUID orderId) {

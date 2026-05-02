@@ -43,6 +43,10 @@ spring:
         jwt:
           jwk-set-uri: ${USER_SERVICE_URL:http://localhost:9000}/.well-known/jwks.json
 
+app:
+  stock:
+    low-threshold: ${STOCK_LOW_THRESHOLD:5}
+    
 springdoc:
   api-docs:
     path: /v3/api-docs

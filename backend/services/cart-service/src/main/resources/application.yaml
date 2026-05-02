@@ -19,6 +19,10 @@ spring:
         jwt:
           jwk-set-uri: ${USER_SERVICE_URL:http://localhost:9000}/.well-known/jwks.json
 
+app:
+  cart:
+    max-quantity-per-item: ${CART_MAX_QUANTITY_PER_ITEM:10}
+
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -58,8 +62,29 @@ resilience4j:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
+      stock-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
   retry:
     instances:
       product-service:
         maxAttempts: 3
         waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - feign.RetryableException
+          - java.io.IOException
+        ignoreExceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+      stock-service:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - feign.RetryableException
+          - java.io.IOException
+        ignoreExceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException

@@ -10,6 +10,8 @@ public record CartItemResponse(
         BigDecimal unitPrice,
         String currency,
         int quantity,
-        BigDecimal subtotal
+        BigDecimal subtotal,
+        String stockStatus,
+        Integer availableQuantity
 ) {
 }

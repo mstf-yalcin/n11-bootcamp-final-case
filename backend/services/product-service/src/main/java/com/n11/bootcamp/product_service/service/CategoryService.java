@@ -7,7 +7,6 @@ import com.n11.bootcamp.product_service.entity.Category;
 import com.n11.bootcamp.product_service.exception.CategoryNotFoundException;
 import com.n11.bootcamp.product_service.mapper.CategoryMapper;
 import com.n11.bootcamp.product_service.repository.CategoryRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

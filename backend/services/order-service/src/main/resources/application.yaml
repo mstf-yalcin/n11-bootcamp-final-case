@@ -89,9 +89,30 @@ resilience4j:
       product-service:
         maxAttempts: 3
         waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - feign.RetryableException
+          - java.io.IOException
+        ignoreExceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
       cart-service:
         maxAttempts: 3
         waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - feign.RetryableException
+          - java.io.IOException
+        ignoreExceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
       user-service:
         maxAttempts: 3
         waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - feign.RetryableException
+          - java.io.IOException
+        ignoreExceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException

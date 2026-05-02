@@ -1,5 +1,6 @@
 package com.n11.bootcamp.product_service.service;
 
+import com.n11.bootcamp.product_service.client.StockClient;
 import com.n11.bootcamp.product_service.dto.request.CreateProductRequest;
 import com.n11.bootcamp.product_service.dto.request.UpdateProductRequest;
 import com.n11.bootcamp.product_service.dto.response.ProductResponse;
@@ -37,6 +38,10 @@ class ProductServiceTest {
     private CategoryRepository categoryRepository;
     @Mock
     private ProductMapper productMapper;
+    @Mock
+    private StockClient stockClient;
+    @Mock
+    private StockAvailabilityCache stockAvailabilityCache;
 
     @InjectMocks
     private ProductService productService;
@@ -64,7 +69,8 @@ class ProductServiceTest {
         productResponse = new ProductResponse(
                 productId, "headphones", "Headphones", null,
                 BigDecimal.valueOf(999.99), "TRY", 0, BigDecimal.ZERO,
-                null, Set.of(), categoryId, "Electronics", null, null
+                null, Set.of(), categoryId, "Electronics", null, null,
+                null, null
         );
     }
 

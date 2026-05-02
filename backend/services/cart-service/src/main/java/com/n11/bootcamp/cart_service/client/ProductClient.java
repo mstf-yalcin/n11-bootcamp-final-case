@@ -2,6 +2,7 @@ package com.n11.bootcamp.cart_service.client;
 
 import com.n11.bootcamp.common_lib.dto.response.ApiResponse;
 import com.n11.bootcamp.cart_service.client.dto.ProductClientResponse;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -9,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import java.util.List;
 import java.util.UUID;
 
+@Retry(name = "product-service")
 @FeignClient(name = "product-service", fallbackFactory = ProductClientFallbackFactory.class)
 public interface ProductClient {
 
