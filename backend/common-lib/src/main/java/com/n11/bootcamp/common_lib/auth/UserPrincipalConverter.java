@@ -1,5 +1,6 @@
 package com.n11.bootcamp.common_lib.auth;
 
+import com.n11.bootcamp.common_lib.auth.enums.Role;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -18,6 +19,8 @@ public class UserPrincipalConverter implements Converter<Jwt, AbstractAuthentica
         if (roles == null) roles = List.of();
 
         List<SimpleGrantedAuthority> authorities = roles.stream()
+                .map(Role::valueOf)
+                .map(Role::getAuthority)
                 .map(SimpleGrantedAuthority::new)
                 .toList();
 

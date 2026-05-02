@@ -73,7 +73,7 @@ public class AuthService {
         user.setRoles(List.of(userRole));
         userRepository.save(user);
 
-        String accessToken = jwtService.generateToken(user.getId(), authRequest.email(), List.of(Role.USER.getValue()));
+        String accessToken = jwtService.generateToken(user.getId(), authRequest.email(), List.of(Role.USER.name()));
         String refreshToken = refreshTokenService.generateRefreshToken(user);
 
         log.info("User registered successfully: {}", authRequest.email());
@@ -127,12 +127,13 @@ public class AuthService {
                 user.getFirstName(),
                 user.getLastName(),
                 user.getPhone(),
-                user.getRoles().stream().map(RoleEntity::getAuthority).toList());
+                user.getRoles().stream().map(RoleEntity::getRole).map(Role::name).toList());
     }
 
     private List<String> extractRoles(User user) {
         return user.getRoles().stream()
-                .map(RoleEntity::getAuthority)
+                .map(RoleEntity::getRole)
+                .map(Role::name)
                 .toList();
     }
 

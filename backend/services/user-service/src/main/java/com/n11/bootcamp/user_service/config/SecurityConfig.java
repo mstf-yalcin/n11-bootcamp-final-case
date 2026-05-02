@@ -1,6 +1,7 @@
 package com.n11.bootcamp.user_service.config;
 
 import com.n11.bootcamp.common_lib.auth.UserPrincipalConverter;
+import com.n11.bootcamp.common_lib.auth.enums.Role;
 import com.n11.bootcamp.common_lib.config.SecurityPaths;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,6 +34,7 @@ public class SecurityConfig {
                         .requestMatchers("/.well-known/**").permitAll()
                         .requestMatchers(SecurityPaths.SWAGGER).permitAll()
                         .requestMatchers(SecurityPaths.ACTUATOR_PUBLIC).permitAll()
+                        .requestMatchers("/api/v1/admin/**").hasRole(Role.ADMIN.name())
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider)
