@@ -1,0 +1,44 @@
+# ----------------------------------------------------------------------------
+# GCP override — image referanslarını Google Artifact Registry'e yönlendirir.
+# CI/CD pipeline tarafından VM'de şu şekilde kullanılır:
+#
+#   export IMAGE_REPO=europe-west1-docker.pkg.dev/PROJECT/n11
+#   export IMAGE_TAG=<git-sha>
+#   docker compose -f docker-compose.yml -f docker-compose.gcp.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.gcp.yml up -d
+#
+# IMAGE_TAG default'u "latest", ama CI her zaman SHA gönderir (immutable deploy).
+# ----------------------------------------------------------------------------
+
+services:
+
+  config-server:
+    image: ${IMAGE_REPO}/config-server:${IMAGE_TAG:-latest}
+
+  discovery-server:
+    image: ${IMAGE_REPO}/discovery-server:${IMAGE_TAG:-latest}
+
+  user-service:
+    image: ${IMAGE_REPO}/user-service:${IMAGE_TAG:-latest}
+
+  product-service:
+    image: ${IMAGE_REPO}/product-service:${IMAGE_TAG:-latest}
+
+  cart-service:
+    image: ${IMAGE_REPO}/cart-service:${IMAGE_TAG:-latest}
+
+  stock-service:
+    image: ${IMAGE_REPO}/stock-service:${IMAGE_TAG:-latest}
+
+  order-service:
+    image: ${IMAGE_REPO}/order-service:${IMAGE_TAG:-latest}
+
+  payment-service:
+    image: ${IMAGE_REPO}/payment-service:${IMAGE_TAG:-latest}
+
+  api-gateway:
+    image: ${IMAGE_REPO}/api-gateway:${IMAGE_TAG:-latest}
+
+  frontend:
+    image: ${IMAGE_REPO}/frontend:${IMAGE_TAG:-latest}
+    build: !reset null

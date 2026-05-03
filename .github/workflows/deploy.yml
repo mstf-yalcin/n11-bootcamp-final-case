@@ -1,0 +1,117 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false 
+
+jobs:
+  build-push:
+    name: Build & push images to GAR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}
+      image_repo: ${{ steps.repo.outputs.repo }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: tag
+        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - id: repo
+        run: |
+          echo "repo=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.GCP_AR_REPO }}" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GAR
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Build & push backend images (Jib)
+        working-directory: backend
+        env:
+          JIB_REPO: ${{ steps.repo.outputs.repo }}
+          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          ./mvnw -B -ntp -DskipTests package jib:build \
+            -Djib.repo="$JIB_REPO" \
+            -Djib.to.tags="$IMAGE_TAG,latest"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: frontend
+          push: true
+          tags: |
+            ${{ steps.repo.outputs.repo }}/frontend:${{ steps.tag.outputs.tag }}
+            ${{ steps.repo.outputs.repo }}/frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to GCE VM
+    needs: build-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Bundle deploy artifacts
+        run: |
+          tar -czf deploy-bundle.tar.gz -C deploy \
+            docker-compose.yml \
+            docker-compose.gcp.yml \
+            common-config.yml \
+            debezium \
+            observability \
+            scripts/deploy-vm.sh
+
+      - name: Copy bundle to VM
+        run: |
+          gcloud compute scp --tunnel-through-iap --zone=${{ vars.GCP_ZONE }} \
+            deploy-bundle.tar.gz \
+            ${{ vars.GCE_VM }}:~/n11/
+
+      - name: Run deploy on VM
+        run: |
+          gcloud compute ssh --tunnel-through-iap --zone=${{ vars.GCP_ZONE }} ${{ vars.GCE_VM }} \
+            --command "cd ~/n11 && \
+              tar -xzf deploy-bundle.tar.gz && \
+              rm deploy-bundle.tar.gz && \
+              export IMAGE_REPO='${{ needs.build-push.outputs.image_repo }}' && \
+              export IMAGE_TAG='${{ needs.build-push.outputs.image_tag }}' && \
+              bash scripts/deploy-vm.sh"
