@@ -8,6 +8,9 @@ app:
 spring:
   application:
     name: api-gateway
+  # WebFlux/Reactor
+  reactor:
+    context-propagation: AUTO
   security:
     oauth2:
       resourceserver:
@@ -204,6 +207,19 @@ management:
     health:
       probes:
         enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLE_RATE:1.0}
+  otlp:
+    tracing:
+      endpoint: "${OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}"
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name},%X{traceId:-},%X{spanId:-},%X{correlationId:-}]"
 
 resilience4j:
   circuitbreaker:

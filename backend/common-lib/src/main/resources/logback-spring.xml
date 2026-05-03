@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  JSON structured logging — common-lib classpath'inde olduğu için tüm app
+  servisleri otomatik bu config'i yükler. Çıktı stdout → Docker container log
+  → Alloy → Loki. MDC alanları (traceId, spanId, correlationId) JSON top-level
+  field olarak görünür → Loki LogQL'de doğrudan filtre, Grafana derived field
+  ile traceId → Tempo link.
+
+  Local dev (docker dışı) için: SPRING_PROFILES_ACTIVE=local çalıştır → plain
+  text, traceId pattern'da. Diğer tüm durumlarda JSON.
+-->
+<configuration>
+    <springProperty name="serviceName" source="spring.application.name" defaultValue="unknown"/>
+
+    <springProfile name="local">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [${serviceName},%X{traceId:-},%X{spanId:-},%X{correlationId:-}] %logger{36} : %msg%n%ex</pattern>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="!local">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <customFields>{"service":"${serviceName}"}</customFields>
+                <includeMdc>true</includeMdc>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+    </springProfile>
+
+    <logger name="org.hibernate" level="WARN"/>
+    <logger name="com.netflix.discovery" level="WARN"/>
+    <logger name="org.springframework.cloud.netflix.eureka" level="WARN"/>
+</configuration>
