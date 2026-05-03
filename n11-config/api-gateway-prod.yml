@@ -1,0 +1,134 @@
+data:
+  string: prod
+
+server:
+  port: 8080
+
+app:
+  cors:
+    allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:*}
+
+spring:
+  application:
+    name: api-gateway
+  reactor:
+    context-propagation: AUTO
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${USER_SERVICE_URL:http://localhost:9000}/.well-known/jwks.json
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/api/v1/auth/**,/api/v1/users/**,/api/v1/admin/users/**,/.well-known/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: user-service
+                    fallbackUri: forward:/fallback/user
+            - id: product-service
+              uri: lb://product-service
+              predicates:
+                - Path=/api/v1/products/**,/api/v1/admin/products/**,/api/v1/categories/**,/api/v1/tags/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: product-service
+                    fallbackUri: forward:/fallback/product
+                - name: Retry
+                  args:
+                    retries: 3
+                    statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                    methods: GET
+                    backoff:
+                      firstBackoff: 100ms
+                      maxBackoff: 1000ms
+                      factor: 2
+                      basedOnPreviousValue: false
+            - id: cart-service
+              uri: lb://cart-service
+              predicates:
+                - Path=/api/v1/cart/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: cart-service
+                    fallbackUri: forward:/fallback/cart
+            - id: order-service
+              uri: lb://order-service
+              predicates:
+                - Path=/api/v1/orders/**,/api/v1/admin/orders/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: order-service
+                    fallbackUri: forward:/fallback/order
+            - id: payment-service
+              uri: lb://payment-service
+              predicates:
+                - Path=/api/v1/payments/**,/api/v1/admin/payments/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: payment-service
+                    fallbackUri: forward:/fallback/payment
+            - id: stock-service
+              uri: lb://stock-service
+              predicates:
+                - Path=/api/v1/stocks/**,/api/v1/admin/reservations/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: stock-service
+                    fallbackUri: forward:/fallback/stock
+
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    fetchRegistry: true
+    registerWithEureka: true
+    serviceUrl:
+      defaultZone: ${EUREKA_URI:http://localhost:8761/eureka}
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    gateway:
+      access: read_only
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLE_RATE:0.1}
+  otlp:
+    tracing:
+      endpoint: "${OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}"
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name},%X{traceId:-},%X{spanId:-},%X{correlationId:-}]"
+  level:
+    root: INFO

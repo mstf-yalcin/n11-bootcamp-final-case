@@ -1,35 +1,12 @@
+data:
+  string: dev
+
 server:
-  port: 9100
+  port: 9300
 
 spring:
   application:
-    name: product-service
-  config:
-    import: optional:configserver:${CONFIG_URI:http://localhost:8888}
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
-  datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:postgres}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:pass123}
-    driver-class-name: org.postgresql.Driver
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: false
-    defer-datasource-initialization: true
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-  sql:
-    init:
-      mode: ${SQL_INIT_MODE:always}
-      schema-locations: classpath:db/seed/01_categories.sql
-      data-locations:
-        - classpath:db/seed/02_products.sql
-        - classpath:db/seed/03_tags.sql
-        - classpath:db/seed/04_product_tag_mappings.sql
+    name: cart-service
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -43,6 +20,10 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${USER_SERVICE_URL:http://localhost:9000}/.well-known/jwks.json
+
+app:
+  cart:
+    max-quantity-per-item: ${CART_MAX_QUANTITY_PER_ITEM:10}
 
 springdoc:
   api-docs:
@@ -89,12 +70,26 @@ feign:
 resilience4j:
   circuitbreaker:
     instances:
+      product-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
       stock-service:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
   retry:
     instances:
+      product-service:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - feign.RetryableException
+          - java.io.IOException
+        ignoreExceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
       stock-service:
         maxAttempts: 3
         waitDuration: 500ms
@@ -105,7 +100,3 @@ resilience4j:
           - java.io.IOException
         ignoreExceptions:
           - io.github.resilience4j.circuitbreaker.CallNotPermittedException
-
-app:
-  stock:
-    cache-ttl-seconds: ${STOCK_CACHE_TTL_SECONDS:60}

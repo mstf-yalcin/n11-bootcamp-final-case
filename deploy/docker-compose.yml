@@ -270,7 +270,12 @@ services:
       file: common-config.yml
       service: microservice-base
     environment:
-      SPRING_PROFILES_ACTIVE: native
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-native}
+      CONFIG_REPO_URI: ${CONFIG_REPO_URI:-}
+      CONFIG_REPO_BRANCH: ${CONFIG_REPO_BRANCH:-master}
+      CONFIG_REPO_USERNAME: ${CONFIG_REPO_USERNAME:-}
+      CONFIG_REPO_PASSWORD: ${CONFIG_REPO_PASSWORD:-}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     ports:
       - "8888:8888"
     healthcheck:

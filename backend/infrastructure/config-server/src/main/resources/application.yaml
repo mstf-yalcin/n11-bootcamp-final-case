@@ -5,18 +5,26 @@ spring:
   application:
     name: config-server
   profiles:
-    active: native
+    active: ${SPRING_PROFILES_ACTIVE:native}
   cloud:
     config:
       server:
         native:
-          search-locations: file:///C:/users/mustafa/downloads/n11-config
+          search-locations: ${CONFIG_NATIVE_PATH:file:///C:/users/mustafa/downloads/n11-config}
+        git:
+          uri: ${CONFIG_REPO_URI:https://github.com/mstf-yalcin/n11-config.git}
+          default-label: ${CONFIG_REPO_BRANCH:master}
+          clone-on-start: true
+          username: ${CONFIG_REPO_USERNAME:}
+          password: ${CONFIG_REPO_PASSWORD:}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
 management:
   endpoints:
     web:
       exposure:
-        include: "*"
+        include: health,info,prometheus,metrics,monitor,busrefresh
   health:
     liveness-state:
       enabled: true

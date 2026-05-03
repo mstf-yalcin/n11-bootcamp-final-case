@@ -1,13 +1,12 @@
+data:
+  string: prod
+
 server:
-  port: 9100
+  port: 9400
 
 spring:
   application:
-    name: product-service
-  config:
-    import: optional:configserver:${CONFIG_URI:http://localhost:8888}
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+    name: order-service
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:postgres}
     username: ${DB_USERNAME:postgres}
@@ -15,29 +14,22 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
-    defer-datasource-initialization: true
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-  sql:
-    init:
-      mode: ${SQL_INIT_MODE:always}
-      schema-locations: classpath:db/seed/01_categories.sql
-      data-locations:
-        - classpath:db/seed/02_products.sql
-        - classpath:db/seed/03_tags.sql
-        - classpath:db/seed/04_product_tag_mappings.sql
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:pass123}
-      timeout: 2000ms
+        format_sql: false
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: order-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
   security:
     oauth2:
       resourceserver:
@@ -73,7 +65,7 @@ management:
       application: ${spring.application.name}
   tracing:
     sampling:
-      probability: ${TRACING_SAMPLE_RATE:1.0}
+      probability: ${TRACING_SAMPLE_RATE:0.1}
   otlp:
     tracing:
       endpoint: "${OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}"
@@ -81,6 +73,8 @@ management:
 logging:
   pattern:
     level: "%5p [${spring.application.name},%X{traceId:-},%X{spanId:-},%X{correlationId:-}]"
+  level:
+    root: INFO
 
 feign:
   circuitbreaker:
@@ -89,13 +83,21 @@ feign:
 resilience4j:
   circuitbreaker:
     instances:
-      stock-service:
+      product-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      cart-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      user-service:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
   retry:
     instances:
-      stock-service:
+      product-service:
         maxAttempts: 3
         waitDuration: 500ms
         enableExponentialBackoff: true
@@ -105,7 +107,23 @@ resilience4j:
           - java.io.IOException
         ignoreExceptions:
           - io.github.resilience4j.circuitbreaker.CallNotPermittedException
-
-app:
-  stock:
-    cache-ttl-seconds: ${STOCK_CACHE_TTL_SECONDS:60}
+      cart-service:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - feign.RetryableException
+          - java.io.IOException
+        ignoreExceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+      user-service:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - feign.RetryableException
+          - java.io.IOException
+        ignoreExceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException

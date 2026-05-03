@@ -47,14 +47,20 @@ public class UserServiceApplication implements CommandLineRunner {
         roleRepository.saveAll(List.of(r1, r2));
 
         User u1 = new User();
-        u1.setEmail("admin");
-        u1.setPassword(passwordEncoder.encode("admin"));
+        u1.setEmail("admin@test.com");
+        u1.setPassword(passwordEncoder.encode("admin123"));
+        u1.setFirstName("Admin");
+        u1.setLastName("User");
+        u1.setPhone("5555555555");
         u1.setRoles(List.of(r1));
         userRepository.save(u1);
 
         User u2 = new User();
-        u2.setEmail("test");
-        u2.setPassword(passwordEncoder.encode("test"));
+        u2.setEmail("test@test.com");
+        u2.setPassword(passwordEncoder.encode("test123"));
+        u1.setPhone("5555555556");
+        u1.setFirstName("Test");
+        u1.setLastName("User");
         u2.setRoles(List.of(r2));
         userRepository.save(u2);
     }

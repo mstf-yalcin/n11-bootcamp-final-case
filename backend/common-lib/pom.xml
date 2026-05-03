@@ -56,8 +56,11 @@
 			<artifactId>spring-data-commons</artifactId>
 		</dependency>
 
-		<!-- JSON log encoder — common-lib içeren tüm app servisler için
-		     classpath'ten logback-spring.xml otomatik yüklenir. -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-bus-kafka</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>net.logstash.logback</groupId>
 			<artifactId>logstash-logback-encoder</artifactId>

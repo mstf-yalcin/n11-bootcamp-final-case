@@ -1,13 +1,12 @@
+data:
+  string: prod
+
 server:
-  port: 9200
+  port: 9500
 
 spring:
   application:
-    name: stock-service
-  config:
-    import: optional:configserver:${CONFIG_URI:http://localhost:8888}
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+    name: payment-service
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:postgres}
     username: ${DB_USERNAME:postgres}
@@ -15,22 +14,16 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
-    defer-datasource-initialization: true
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-  sql:
-    init:
-      mode: ${SQL_INIT_MODE:always}
-      data-locations:
-        - classpath:db/seed/01_stock.sql
+        format_sql: false
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
-      group-id: stock-service
+      group-id: payment-service
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
@@ -43,10 +36,6 @@ spring:
         jwt:
           jwk-set-uri: ${USER_SERVICE_URL:http://localhost:9000}/.well-known/jwks.json
 
-app:
-  stock:
-    low-threshold: ${STOCK_LOW_THRESHOLD:5}
-    
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -76,7 +65,7 @@ management:
       application: ${spring.application.name}
   tracing:
     sampling:
-      probability: ${TRACING_SAMPLE_RATE:1.0}
+      probability: ${TRACING_SAMPLE_RATE:0.1}
   otlp:
     tracing:
       endpoint: "${OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}"
@@ -84,3 +73,19 @@ management:
 logging:
   pattern:
     level: "%5p [${spring.application.name},%X{traceId:-},%X{spanId:-},%X{correlationId:-}]"
+  level:
+    root: INFO
+
+payment:
+  # mode: mock | sandbox  (prod'da sandbox -> gerçek Iyzico sandbox; live için PAYMENT_MODE=live + ayrı key'ler)
+  mode: ${PAYMENT_MODE:sandbox}
+  iyzico:
+    api-key: ${IYZICO_API_KEY:your-iyzico-api-key}
+    secret-key: ${IYZICO_SECRET_KEY:your-iyzico-secret-key}
+    base-url: ${IYZICO_BASE_URL:https://sandbox-api.iyzipay.com}
+    test-card:
+      holder-name: ${IYZICO_TEST_HOLDER:John Doe}
+      number: ${IYZICO_TEST_CARD_NUMBER:5528790000000008}
+      expire-month: ${IYZICO_TEST_EXP_MONTH:12}
+      expire-year: ${IYZICO_TEST_EXP_YEAR:2030}
+      cvc: ${IYZICO_TEST_CVC:123}
