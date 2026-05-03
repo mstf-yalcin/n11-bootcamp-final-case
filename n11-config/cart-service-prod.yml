@@ -20,6 +20,10 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${USER_SERVICE_URL:http://localhost:9000}/.well-known/jwks.json
+    stream:
+      bindings:
+        springCloudBusInput:
+          group: ${spring.application.name}-bus-${random.uuid}
 
 app:
   cart:

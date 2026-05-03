@@ -18,8 +18,6 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${USER_SERVICE_URL:http://localhost:9000}/.well-known/jwks.json
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
   cloud:
     gateway:
       server:
@@ -34,6 +32,7 @@ spring:
                   args:
                     name: user-service
                     fallbackUri: forward:/fallback/user
+
             - id: product-service
               uri: lb://product-service
               predicates:
@@ -53,6 +52,7 @@ spring:
                       maxBackoff: 1000ms
                       factor: 2
                       basedOnPreviousValue: false
+
             - id: cart-service
               uri: lb://cart-service
               predicates:
@@ -62,6 +62,17 @@ spring:
                   args:
                     name: cart-service
                     fallbackUri: forward:/fallback/cart
+                - name: Retry
+                  args:
+                    retries: 3
+                    statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                    methods: GET
+                    backoff:
+                      firstBackoff: 100ms
+                      maxBackoff: 1000ms
+                      factor: 2
+                      basedOnPreviousValue: false
+
             - id: order-service
               uri: lb://order-service
               predicates:
@@ -71,6 +82,17 @@ spring:
                   args:
                     name: order-service
                     fallbackUri: forward:/fallback/order
+                - name: Retry
+                  args:
+                    retries: 3
+                    statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                    methods: GET
+                    backoff:
+                      firstBackoff: 100ms
+                      maxBackoff: 1000ms
+                      factor: 2
+                      basedOnPreviousValue: false
+
             - id: payment-service
               uri: lb://payment-service
               predicates:
@@ -80,6 +102,7 @@ spring:
                   args:
                     name: payment-service
                     fallbackUri: forward:/fallback/payment
+
             - id: stock-service
               uri: lb://stock-service
               predicates:
@@ -89,6 +112,67 @@ spring:
                   args:
                     name: stock-service
                     fallbackUri: forward:/fallback/stock
+                - name: Retry
+                  args:
+                    retries: 3
+                    statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                    methods: GET
+                    backoff:
+                      firstBackoff: 100ms
+                      maxBackoff: 1000ms
+                      factor: 2
+                      basedOnPreviousValue: false
+
+            - id: user-service-api-docs
+              uri: lb://user-service
+              predicates:
+                - Path=/v3/api-docs/user-service
+              filters:
+                - RewritePath=/v3/api-docs/user-service, /v3/api-docs
+
+            - id: product-service-api-docs
+              uri: lb://product-service
+              predicates:
+                - Path=/v3/api-docs/product-service
+              filters:
+                - RewritePath=/v3/api-docs/product-service, /v3/api-docs
+
+            - id: cart-service-api-docs
+              uri: lb://cart-service
+              predicates:
+                - Path=/v3/api-docs/cart-service
+              filters:
+                - RewritePath=/v3/api-docs/cart-service, /v3/api-docs
+
+            - id: order-service-api-docs
+              uri: lb://order-service
+              predicates:
+                - Path=/v3/api-docs/order-service
+              filters:
+                - RewritePath=/v3/api-docs/order-service, /v3/api-docs
+
+            - id: payment-service-api-docs
+              uri: lb://payment-service
+              predicates:
+                - Path=/v3/api-docs/payment-service
+              filters:
+                - RewritePath=/v3/api-docs/payment-service, /v3/api-docs
+
+            - id: stock-service-api-docs
+              uri: lb://stock-service
+              predicates:
+                - Path=/v3/api-docs/stock-service
+              filters:
+                - RewritePath=/v3/api-docs/stock-service, /v3/api-docs
+    stream:
+      bindings:
+        springCloudBusInput:
+          group: ${spring.application.name}-bus-${random.uuid}
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  config:
+    import: optional:configserver:${CONFIG_URI:http://localhost:8888}
 
 eureka:
   instance:
@@ -105,6 +189,20 @@ springdoc:
   swagger-ui:
     enabled: ${SPRINGDOC_ENABLED:false}
     path: /swagger-ui.html
+    disable-swagger-default-url: true
+    urls:
+      - name: user-service
+        url: /v3/api-docs/user-service
+      - name: product-service
+        url: /v3/api-docs/product-service
+      - name: cart-service
+        url: /v3/api-docs/cart-service
+      - name: order-service
+        url: /v3/api-docs/order-service
+      - name: payment-service
+        url: /v3/api-docs/payment-service
+      - name: stock-service
+        url: /v3/api-docs/stock-service
 
 management:
   endpoints:
@@ -132,3 +230,51 @@ logging:
     level: "%5p [${spring.application.name},%X{traceId:-},%X{spanId:-},%X{correlationId:-}]"
   level:
     root: INFO
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      user-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 3
+      product-service:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 5
+      cart-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+      order-service:
+        slidingWindowSize: 20
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 5
+      payment-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 3
+      stock-service:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+  timelimiter:
+    instances:
+      user-service:
+        timeoutDuration: 3s
+      product-service:
+        timeoutDuration: 5s
+      cart-service:
+        timeoutDuration: 5s
+      order-service:
+        timeoutDuration: 10s
+      payment-service:
+        timeoutDuration: 10s
+      stock-service:
+        timeoutDuration: 5s

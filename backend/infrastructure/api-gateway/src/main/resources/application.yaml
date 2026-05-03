@@ -162,11 +162,15 @@ spring:
                 - Path=/v3/api-docs/stock-service
               filters:
                 - RewritePath=/v3/api-docs/stock-service, /v3/api-docs
+    stream:
+      bindings:
+        springCloudBusInput:
+          group: ${spring.application.name}-bus-${random.uuid}
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
   config:
-    import: optional:configserver:http://localhost:8888/
+    import: optional:configserver:${CONFIG_URI:http://localhost:8888}
 
 eureka:
   instance:

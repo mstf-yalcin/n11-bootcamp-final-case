@@ -17,6 +17,10 @@ spring:
           clone-on-start: true
           username: ${CONFIG_REPO_USERNAME:}
           password: ${CONFIG_REPO_PASSWORD:}
+    stream:
+      bindings:
+        springCloudBusInput:
+          group: ${spring.application.name}-bus-${random.uuid}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
