@@ -53,7 +53,7 @@ jobs:
           JIB_REPO: ${{ steps.repo.outputs.repo }}
           IMAGE_TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          ./mvnw -B -ntp -DskipTests package jib:build \
+          mvn -B -ntp -DskipTests package jib:build \
             -Djib.repo="$JIB_REPO" \
             -Djib.to.tags="$IMAGE_TAG,latest"
 
