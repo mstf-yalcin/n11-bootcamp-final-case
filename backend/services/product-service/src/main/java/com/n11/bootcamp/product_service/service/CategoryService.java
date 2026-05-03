@@ -68,6 +68,7 @@ public class CategoryService {
         boolean nameChanged = !category.getName().equalsIgnoreCase(request.name());
         category.setName(request.name());
         category.setDescription(request.description());
+        category.setImageUrl(request.imageUrl());
         if (nameChanged) {
             category.setSlug(generateUniqueSlug(request.name()));
         }

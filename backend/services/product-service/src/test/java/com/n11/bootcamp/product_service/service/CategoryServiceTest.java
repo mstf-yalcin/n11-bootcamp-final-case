@@ -43,8 +43,9 @@ class CategoryServiceTest {
         category = new Category();
         category.setName("Electronics");
         category.setDescription("Electronic products");
+        category.setImageUrl("https://example.com/electronics.jpg");
 
-        categoryResponse = new CategoryResponse(categoryId, "Electronics", "electronics", "Electronic products", null, null);
+        categoryResponse = new CategoryResponse(categoryId, "Electronics", "electronics", "Electronic products", "https://example.com/electronics.jpg", null, null);
     }
 
     @Test
@@ -69,7 +70,7 @@ class CategoryServiceTest {
 
     @Test
     void testCreateCategory_when_requestValid_returnsSavedCategory() {
-        CreateCategoryRequest request = new CreateCategoryRequest("Electronics", "Electronic products");
+        CreateCategoryRequest request = new CreateCategoryRequest("Electronics", "Electronic products", "https://example.com/electronics.jpg");
 
         when(categoryMapper.toEntity(request)).thenReturn(category);
         when(categoryRepository.existsBySlug("electronics")).thenReturn(false);
@@ -86,7 +87,7 @@ class CategoryServiceTest {
 
     @Test
     void testCreateCategory_when_slugCollision_throwsSlugAlreadyExistsException() {
-        CreateCategoryRequest request = new CreateCategoryRequest("Electronics", "Electronic products");
+        CreateCategoryRequest request = new CreateCategoryRequest("Electronics", "Electronic products", "https://example.com/electronics.jpg");
 
         when(categoryMapper.toEntity(request)).thenReturn(category);
         when(categoryRepository.existsBySlug("electronics")).thenReturn(true);
