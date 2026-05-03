@@ -59,14 +59,14 @@ public class ProductService {
     }
 
     public Page<ProductResponse> getProducts(UUID categoryId, BigDecimal minPrice, BigDecimal maxPrice,
-                                             String search, Pageable pageable) {
-        log.info("Listing products: categoryId={}, minPrice={}, maxPrice={}, search={}, page={}",
-                categoryId, minPrice, maxPrice, search, pageable.getPageNumber());
+                                             BigDecimal minRating, String search, Pageable pageable) {
+        log.info("Listing products: categoryId={}, minPrice={}, maxPrice={}, minRating={}, search={}, page={}",
+                categoryId, minPrice, maxPrice, minRating, search, pageable.getPageNumber());
         String searchPattern = (search != null && !search.isBlank())
                 ? "%" + search.toLowerCase() + "%"
                 : null;
         Page<ProductResponse> page = productRepository
-                .findWithFilters(categoryId, minPrice, maxPrice, searchPattern, pageable)
+                .findWithFilters(categoryId, minPrice, maxPrice, minRating, searchPattern, pageable)
                 .map(productMapper::toResponse);
 
         List<UUID> ids = page.getContent().stream().map(ProductResponse::id).toList();
@@ -82,14 +82,15 @@ public class ProductService {
     }
 
     public Page<ProductResponse> getAdminProducts(UUID categoryId, BigDecimal minPrice, BigDecimal maxPrice,
-                                                  String search, boolean includeInactive, Pageable pageable) {
-        log.info("Admin listing products: categoryId={}, minPrice={}, maxPrice={}, search={}, includeInactive={}, page={}",
-                categoryId, minPrice, maxPrice, search, includeInactive, pageable.getPageNumber());
+                                                  BigDecimal minRating, String search, boolean includeInactive,
+                                                  Pageable pageable) {
+        log.info("Admin listing products: categoryId={}, minPrice={}, maxPrice={}, minRating={}, search={}, includeInactive={}, page={}",
+                categoryId, minPrice, maxPrice, minRating, search, includeInactive, pageable.getPageNumber());
         String searchPattern = (search != null && !search.isBlank())
                 ? "%" + search.toLowerCase() + "%"
                 : null;
         Page<ProductResponse> page = productRepository
-                .findAdminWithFilters(categoryId, minPrice, maxPrice, searchPattern, includeInactive, pageable)
+                .findAdminWithFilters(categoryId, minPrice, maxPrice, minRating, searchPattern, includeInactive, pageable)
                 .map(productMapper::toResponse);
 
         List<UUID> ids = page.getContent().stream().map(ProductResponse::id).toList();

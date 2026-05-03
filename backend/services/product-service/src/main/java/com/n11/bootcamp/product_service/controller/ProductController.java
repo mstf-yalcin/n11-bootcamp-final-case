@@ -45,9 +45,10 @@ public class ProductController {
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) BigDecimal minRating,
             @RequestParam(required = false) String search,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
-        Page<ProductResponse> page = productService.getProducts(categoryId, minPrice, maxPrice, search, pageable);
+        Page<ProductResponse> page = productService.getProducts(categoryId, minPrice, maxPrice, minRating, search, pageable);
         return ResponseEntity.ok(ApiResponse.success(page));
     }
 

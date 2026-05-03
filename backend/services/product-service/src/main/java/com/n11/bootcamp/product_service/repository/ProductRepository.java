@@ -31,6 +31,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
               AND (:categoryId IS NULL OR p.category.id = :categoryId)
               AND (:minPrice IS NULL OR p.price >= :minPrice)
               AND (:maxPrice IS NULL OR p.price <= :maxPrice)
+              AND (:minRating IS NULL OR p.ratingAverage >= :minRating)
               AND (:search IS NULL
                    OR LOWER(p.name) LIKE :search
                    OR LOWER(p.description) LIKE :search)
@@ -39,6 +40,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             @Param("categoryId") UUID categoryId,
             @Param("minPrice") BigDecimal minPrice,
             @Param("maxPrice") BigDecimal maxPrice,
+            @Param("minRating") BigDecimal minRating,
             @Param("search") String search,
             Pageable pageable
     );
@@ -49,6 +51,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
               AND (:categoryId IS NULL OR p.category.id = :categoryId)
               AND (:minPrice IS NULL OR p.price >= :minPrice)
               AND (:maxPrice IS NULL OR p.price <= :maxPrice)
+              AND (:minRating IS NULL OR p.ratingAverage >= :minRating)
               AND (:search IS NULL
                    OR LOWER(p.name) LIKE :search
                    OR LOWER(p.description) LIKE :search)
@@ -57,6 +60,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             @Param("categoryId") UUID categoryId,
             @Param("minPrice") BigDecimal minPrice,
             @Param("maxPrice") BigDecimal maxPrice,
+            @Param("minRating") BigDecimal minRating,
             @Param("search") String search,
             @Param("includeInactive") boolean includeInactive,
             Pageable pageable

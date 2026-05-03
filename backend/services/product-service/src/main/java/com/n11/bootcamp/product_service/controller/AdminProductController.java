@@ -38,11 +38,12 @@ public class AdminProductController {
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) BigDecimal minRating,
             @RequestParam(required = false) String search,
             @RequestParam(required = false, defaultValue = "true") boolean includeInactive,
             @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
         Page<ProductResponse> page = productService.getAdminProducts(
-                categoryId, minPrice, maxPrice, search, includeInactive, pageable);
+                categoryId, minPrice, maxPrice, minRating, search, includeInactive, pageable);
         return ResponseEntity.ok(ApiResponse.success(page));
     }
 
