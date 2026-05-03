@@ -100,10 +100,10 @@ jobs:
             observability \
             scripts/deploy-vm.sh
 
-      - name: Ensure VM destination dir exists
+      - name: Prepare VM (mkdir + docker group)
         run: |
           gcloud compute ssh --tunnel-through-iap --zone=${{ vars.GCP_ZONE }} ${{ vars.GCE_VM }} \
-            --command 'mkdir -p ~/n11'
+            --command 'sudo usermod -aG docker $USER && mkdir -p ~/n11'
 
       - name: Copy bundle to VM
         run: |
