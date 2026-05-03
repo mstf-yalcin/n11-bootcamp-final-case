@@ -25,12 +25,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("""
         SELECT DISTINCT u FROM User u
         LEFT JOIN u.roles r
-        WHERE (:pattern IS NULL OR
+        WHERE (CAST(:pattern AS string) IS NULL OR
                LOWER(u.email)     LIKE :pattern OR
                LOWER(u.firstName) LIKE :pattern OR
                LOWER(u.lastName)  LIKE :pattern)
-        AND   (:role    IS NULL OR r.authority = :role)
-        AND   (:enabled IS NULL OR u.enabled   = :enabled)
+        AND   (CAST(:role    AS string) IS NULL OR r.authority = :role)
+        AND   (CAST(:enabled AS string) IS NULL OR u.enabled   = :enabled)
     """)
     Page<User> searchAdminUsers(
             @Param("pattern") String pattern,

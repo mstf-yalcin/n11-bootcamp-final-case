@@ -26,16 +26,16 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @Query("""
         SELECT o FROM Order o
         WHERE o.isActive = true
-        AND (:status IS NULL OR o.status = :status)
-        AND (:userId IS NULL OR o.userId = :userId)
-        AND (:from   IS NULL OR o.createdAt >= :from)
-        AND (:to     IS NULL OR o.createdAt <= :to)
+        AND (CAST(:status     AS string) IS NULL OR o.status     = :status)
+        AND (CAST(:userId     AS string) IS NULL OR o.userId     = :userId)
+        AND (CAST(:from       AS string) IS NULL OR o.createdAt >= :from)
+        AND (CAST(:to         AS string) IS NULL OR o.createdAt <= :to)
         AND (
-            :pattern IS NULL OR
+            CAST(:pattern AS string) IS NULL OR
             LOWER(o.buyerEmail)     LIKE :pattern OR
             LOWER(o.buyerFirstName) LIKE :pattern OR
             LOWER(o.buyerLastName)  LIKE :pattern OR
-            (:searchUuid IS NOT NULL AND o.id = :searchUuid)
+            (CAST(:searchUuid AS string) IS NOT NULL AND o.id = :searchUuid)
         )
     """)
     Page<Order> searchAdminOrders(

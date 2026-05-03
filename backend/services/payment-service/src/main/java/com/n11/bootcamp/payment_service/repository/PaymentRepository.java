@@ -23,17 +23,17 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     @Query("""
         SELECT p FROM Payment p
         WHERE p.isActive = true
-        AND (:status IS NULL OR p.status = :status)
-        AND (:userId IS NULL OR p.userId = :userId)
-        AND (:from   IS NULL OR p.createdAt >= :from)
-        AND (:to     IS NULL OR p.createdAt <= :to)
+        AND (CAST(:status AS string) IS NULL OR p.status     = :status)
+        AND (CAST(:userId AS string) IS NULL OR p.userId     = :userId)
+        AND (CAST(:from   AS string) IS NULL OR p.createdAt >= :from)
+        AND (CAST(:to     AS string) IS NULL OR p.createdAt <= :to)
         AND (
-            :pattern IS NULL OR
+            CAST(:pattern AS string) IS NULL OR
             LOWER(p.buyerEmail)     LIKE :pattern OR
             LOWER(p.buyerFirstName) LIKE :pattern OR
             LOWER(p.buyerLastName)  LIKE :pattern OR
-            (:searchUuid IS NOT NULL AND p.id = :searchUuid) OR
-            (:searchUuid IS NOT NULL AND p.orderId = :searchUuid)
+            (CAST(:searchUuid AS string) IS NOT NULL AND p.id      = :searchUuid) OR
+            (CAST(:searchUuid AS string) IS NOT NULL AND p.orderId = :searchUuid)
         )
     """)
     Page<Payment> searchAdminPayments(

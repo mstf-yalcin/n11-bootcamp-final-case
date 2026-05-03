@@ -21,9 +21,9 @@ public interface StockReservationRepository extends JpaRepository<StockReservati
 
     @Query("""
         SELECT r FROM StockReservation r
-        WHERE (:status    IS NULL OR r.status    = :status)
-        AND   (:productId IS NULL OR r.productId = :productId)
-        AND   (:orderId   IS NULL OR r.orderId   = :orderId)
+        WHERE (CAST(:status    AS string) IS NULL OR r.status    = :status)
+        AND   (CAST(:productId AS string) IS NULL OR r.productId = :productId)
+        AND   (CAST(:orderId   AS string) IS NULL OR r.orderId   = :orderId)
     """)
     Page<StockReservation> searchAdminReservations(
             @Param("status") ReservationStatus status,
