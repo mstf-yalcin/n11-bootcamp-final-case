@@ -1,0 +1,532 @@
+
+services:
+
+  # INFRASTRUCTURE
+  postgres:
+    image: debezium/postgres:16
+    container_name: n11-postgres
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pass123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks:
+      - n11-network
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: n11-redis
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-pass123}"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-pass123}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - n11-network
+
+  kafka:
+    image: bitnamilegacy/kafka:3.8
+    container_name: n11-kafka
+    hostname: kafka
+    environment:
+      KAFKA_CFG_NODE_ID: 0
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:29093
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:29093,PLAINTEXT_HOST://:9092
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CFG_NUM_PARTITIONS: 3
+      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_CFG_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CFG_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_CFG_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka-data:/bitnami/kafka
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:29092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+    networks:
+      - n11-network
+
+  debezium-connect:
+    image: debezium/connect:2.7.3.Final
+    container_name: n11-debezium
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      BOOTSTRAP_SERVERS: kafka:29092
+      GROUP_ID: connect-cluster
+      CONFIG_STORAGE_TOPIC: connect-configs
+      OFFSET_STORAGE_TOPIC: connect-offsets
+      STATUS_STORAGE_TOPIC: connect-status
+      KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      STATUS_STORAGE_REPLICATION_FACTOR: 1
+
+      CONNECT_CONFIG_PROVIDERS: env
+      CONNECT_CONFIG_PROVIDERS_ENV_CLASS: org.apache.kafka.common.config.provider.EnvVarConfigProvider
+      DB_HOST: ${DB_HOST:-postgres}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-pass123}
+      DB_NAME: ${DB_NAME:-postgres}
+    ports:
+      - "8083:8083"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/connectors >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+    networks:
+      - n11-network
+
+  connector-init:
+    image: curlimages/curl:8.10.1
+    container_name: n11-connector-init
+    depends_on:
+      debezium-connect:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      stock-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+    volumes:
+      - ./debezium:/connectors:ro
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        echo "Waiting 5s for app services to settle (outbox tables already created)..."
+        sleep 5
+        for f in /connectors/*-outbox-connector.json; do
+          name=$$(basename "$$f")
+          echo "Deploying $$name..."
+          curl -s -o /dev/null -w "$$name → HTTP %{http_code}\n" \
+            -X POST http://debezium-connect:8083/connectors \
+            -H "Content-Type: application/json" -d @"$$f" || echo "Failed: $$name"
+        done
+        echo "All connectors deployed. Listing:"
+        curl -s http://debezium-connect:8083/connectors
+    restart: "no"
+    networks:
+      - n11-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: n11-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+      debezium-connect:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: n11-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: debezium-connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://debezium-connect:8083
+      DYNAMIC_CONFIG_ENABLED: "true"
+    ports:
+      - "8090:8080"
+    networks:
+      - n11-network
+
+  # OBSERVABILITY (versiyon pinned)
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: n11-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - n11-network
+
+  tempo:
+    image: grafana/tempo:2.7.1
+    container_name: n11-tempo
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./observability/tempo/tempo.yml:/etc/tempo.yml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"  
+      - "4317:4317"  
+      - "4318:4318"   
+    networks:
+      - n11-network
+
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: n11-loki
+    command: ["-config.file=/etc/loki/loki-config.yaml"]
+    volumes:
+      - ./observability/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - n11-network
+
+  alloy:
+    image: grafana/alloy:v1.5.1
+    container_name: n11-alloy
+    depends_on:
+      loki:
+        condition: service_started
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    ports:
+      - "12345:12345"   # Alloy debug UI
+    networks:
+      - n11-network
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: n11-grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      tempo:
+        condition: service_started
+      loki:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_THEME: dark
+    volumes:
+      - ./observability/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - n11-network
+
+  # PLATFORM SERVICES
+  config-server:
+    image: n11/config-server:1.0.0-SNAPSHOT
+    container_name: n11-config-server
+    extends:
+      file: common-config.yml
+      service: microservice-base
+    environment:
+      SPRING_PROFILES_ACTIVE: native
+    ports:
+      - "8888:8888"
+    healthcheck:
+      test: "curl --fail --silent localhost:8888/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  discovery-server:
+    image: n11/discovery-server:1.0.0-SNAPSHOT
+    container_name: n11-discovery-server
+    extends:
+      file: common-config.yml
+      service: microservice-base
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: "curl --fail --silent localhost:8761/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # AUTH 
+  user-service:
+    image: n11/user-service:1.0.0-SNAPSHOT
+    container_name: n11-user-service
+    extends:
+      file: common-config.yml
+      service: microservice-jpa
+    depends_on:
+      postgres:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+    ports:
+      - "9000:9000"
+    healthcheck:
+      test: "curl --fail --silent localhost:9000/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # BUSINESS SERVICES
+  product-service:
+    image: n11/product-service:1.0.0-SNAPSHOT
+    container_name: n11-product-service
+    extends:
+      file: common-config.yml
+      service: microservice-jpa
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    environment:
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-pass123}
+    ports:
+      - "9100:9100"
+    healthcheck:
+      test: "curl --fail --silent localhost:9100/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  cart-service:
+    image: n11/cart-service:1.0.0-SNAPSHOT
+    container_name: n11-cart-service
+    extends:
+      file: common-config.yml
+      service: microservice-redis
+    depends_on:
+      redis:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+    ports:
+      - "9300:9300"
+    healthcheck:
+      test: "curl --fail --silent localhost:9300/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  stock-service:
+    image: n11/stock-service:1.0.0-SNAPSHOT
+    container_name: n11-stock-service
+    extends:
+      file: common-config.yml
+      service: microservice-jpa-kafka
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: "curl --fail --silent localhost:9200/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  order-service:
+    image: n11/order-service:1.0.0-SNAPSHOT
+    container_name: n11-order-service
+    extends:
+      file: common-config.yml
+      service: microservice-jpa-kafka
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      cart-service:
+        condition: service_healthy
+    ports:
+      - "9400:9400"
+    healthcheck:
+      test: "curl --fail --silent localhost:9400/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  payment-service:
+    image: n11/payment-service:1.0.0-SNAPSHOT
+    container_name: n11-payment-service
+    extends:
+      file: common-config.yml
+      service: microservice-jpa-kafka
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    environment:
+      PAYMENT_MODE: ${PAYMENT_MODE:-sandbox}
+      IYZICO_API_KEY: ${IYZICO_API_KEY:-your-iyzico-api-key}
+      IYZICO_SECRET_KEY: ${IYZICO_SECRET_KEY:-your-iyzico-secret-key}
+      IYZICO_BASE_URL: ${IYZICO_BASE_URL:-https://sandbox-api.iyzipay.com}
+    ports:
+      - "9500:9500"
+    healthcheck:
+      test: "curl --fail --silent localhost:9500/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # API GATEWAY
+  api-gateway:
+    image: n11/api-gateway:1.0.0-SNAPSHOT
+    container_name: n11-api-gateway
+    extends:
+      file: common-config.yml
+      service: microservice-platform
+    depends_on:
+      config-server:
+        condition: service_healthy
+      discovery-server:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      product-service:
+        condition: service_healthy
+      cart-service:
+        condition: service_healthy
+      stock-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: "curl --fail --silent localhost:8080/actuator/health/readiness | grep UP || exit 1"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # FRONTEND
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    image: n11/frontend:1.0.0-SNAPSHOT
+    container_name: n11-frontend
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    networks:
+      - n11-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+# ====================================================================
+volumes:
+  postgres-data:
+  redis-data:
+  kafka-data:
+  prometheus-data:
+  tempo-data:
+  loki-data:
+  alloy-data:
+  grafana-data:
+
+networks:
+  n11-network:
+    driver: bridge

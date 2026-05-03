@@ -1,0 +1,86 @@
+// ----------------------------------------------------------------------------
+// Alloy — Docker container log scraper → Loki
+// ----------------------------------------------------------------------------
+// Discovers all Docker containers, filters to n11-* only (compose container_name
+// pattern), forwards stdout/stderr to Loki. JSON log lines from Spring services
+// are parsed; "service", "level", "traceId" become labels for fast LogQL search.
+// ----------------------------------------------------------------------------
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "5s"
+}
+
+// Sadece n11-* container'larını topla, label normalize et.
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(n11-.*)"
+    target_label  = "container"
+  }
+
+  // n11-order-service → order-service
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/n11-(.*)"
+    target_label  = "service"
+  }
+
+  // Sadece n11-* container'larını keep et — postgres/kafka/redis loglarını dışla.
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/n11-.*"
+    action        = "keep"
+  }
+}
+
+loki.source.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  targets          = discovery.relabel.containers.output
+  forward_to       = [loki.process.spring_json.receiver]
+  refresh_interval = "5s"
+}
+
+// Spring servisleri JSON log basıyor (logstash-logback-encoder). JSON parse et,
+// traceId/level/correlationId field'larını label'a çıkar (düşük cardinality için
+// sadece level ve service — traceId structured field olarak kalır, derived field
+// üzerinden Tempo'ya link).
+loki.process "spring_json" {
+  forward_to = [loki.write.default.receiver]
+
+  stage.json {
+    expressions = {
+      level   = "level",
+      logger  = "logger_name",
+      msg     = "message",
+      traceId = "traceId",
+      spanId  = "spanId",
+      correlationId = "correlationId",
+    }
+  }
+
+  stage.labels {
+    values = {
+      level = "",
+    }
+  }
+
+  stage.timestamp {
+    source = "timestamp"
+    format = "RFC3339Nano"
+    fallback_formats = ["RFC3339", "UnixMs"]
+  }
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

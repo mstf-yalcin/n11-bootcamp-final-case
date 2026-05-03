@@ -1,0 +1,60 @@
+
+services:
+
+  # network
+  network-deploy-service:
+    networks:
+      - n11-network
+
+  # restart + readiness probe açma
+  microservice-base:
+    extends:
+      service: network-deploy-service
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped
+    environment:
+      MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+      MANAGEMENT_HEALTH_LIVENESSSTATE_ENABLED: "true"
+      MANAGEMENT_HEALTH_READINESSSTATE_ENABLED: "true"
+      OTLP_TRACES_ENDPOINT: http://tempo:4318/v1/traces
+
+  # Spring Cloud Config + Eureka URL + JWKS
+  microservice-platform:
+    extends:
+      service: microservice-base
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      CONFIG_URI: http://config-server:8888
+      EUREKA_URI: http://discovery-server:8761/eureka
+      USER_SERVICE_URL: http://user-service:9000
+      MANAGEMENT_OBSERVATIONS_ENABLE_SPRING_SECURITY: "false"
+
+  # PostgreSQL JPA
+  microservice-jpa:
+    extends:
+      service: microservice-platform
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: postgres
+      DB_USERNAME: postgres
+      DB_PASSWORD: pass123
+
+  # Redis
+  microservice-redis:
+    extends:
+      service: microservice-platform
+    environment:
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-pass123}
+
+  # JPA + Kafka
+  microservice-jpa-kafka:
+    extends:
+      service: microservice-jpa
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092

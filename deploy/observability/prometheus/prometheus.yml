@@ -1,0 +1,42 @@
+# ----------------------------------------------------------------------------
+# Prometheus scrape config — n11 microservices
+# ----------------------------------------------------------------------------
+# Her servis spring-boot-starter-actuator + micrometer-registry-prometheus
+# üzerinden /actuator/prometheus export eder. Targets static — port'lar sabit
+# (PORTS.md ile sync). Eureka SD demo'da overkill.
+# ----------------------------------------------------------------------------
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: n11-bootcamp
+    env: dev
+
+scrape_configs:
+  - job_name: 'spring-services'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets:
+          - 'user-service:9000'
+          - 'product-service:9100'
+          - 'stock-service:9200'
+          - 'cart-service:9300'
+          - 'order-service:9400'
+          - 'payment-service:9500'
+        labels:
+          tier: business
+
+  - job_name: 'spring-infrastructure'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets:
+          - 'api-gateway:8080'
+          - 'config-server:8888'
+          - 'discovery-server:8761'
+        labels:
+          tier: infrastructure
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
