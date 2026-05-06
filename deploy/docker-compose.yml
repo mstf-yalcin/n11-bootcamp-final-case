@@ -238,6 +238,24 @@ services:
     networks:
       - n11-network
 
+  cadvisor:
+    image: ghcr.io/google/cadvisor:0.55.1
+    container_name: n11-cadvisor
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+    networks:
+      - n11-network
+
   grafana:
     image: grafana/grafana:11.5.2
     container_name: n11-grafana
@@ -254,8 +272,11 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       GF_USERS_DEFAULT_THEME: dark
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
     volumes:
       - ./observability/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
+      - ./observability/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting:ro 
       - grafana-data:/var/lib/grafana
     ports:
       - "3000:3000"
@@ -271,11 +292,14 @@ services:
       service: microservice-base
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-native}
+      CONFIG_NATIVE_PATH: file:/config 
       CONFIG_REPO_URI: ${CONFIG_REPO_URI:-}
       CONFIG_REPO_BRANCH: ${CONFIG_REPO_BRANCH:-master}
       CONFIG_REPO_USERNAME: ${CONFIG_REPO_USERNAME:-}
       CONFIG_REPO_PASSWORD: ${CONFIG_REPO_PASSWORD:-}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    volumes:
+      - ./n11-config:/config:ro
     ports:
       - "8888:8888"
     healthcheck:
