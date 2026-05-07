@@ -8,7 +8,8 @@ app:
 spring:
   application:
     name: api-gateway
-  # WebFlux/Reactor
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   reactor:
     context-propagation: AUTO
   security:
@@ -229,48 +230,48 @@ logging:
 
 resilience4j:
   circuitbreaker:
-    instances:
-      user-service:
+    configs:
+      default:
         slidingWindowSize: 10
         failureRateThreshold: 50
-        waitDurationInOpenState: 15s
-        permittedNumberOfCallsInHalfOpenState: 3
-      product-service:
-        slidingWindowSize: 20
-        failureRateThreshold: 50
         waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+      user-service:
+        baseConfig: default
+        waitDurationInOpenState: 15s
+      product-service:
+        baseConfig: default
+        slidingWindowSize: 20
         permittedNumberOfCallsInHalfOpenState: 5
       cart-service:
-        slidingWindowSize: 10
-        failureRateThreshold: 50
-        waitDurationInOpenState: 10s
-        permittedNumberOfCallsInHalfOpenState: 3
+        baseConfig: default
       order-service:
+        baseConfig: default
         slidingWindowSize: 20
-        failureRateThreshold: 50
         waitDurationInOpenState: 15s
         permittedNumberOfCallsInHalfOpenState: 5
       payment-service:
-        slidingWindowSize: 10
-        failureRateThreshold: 50
+        baseConfig: default
         waitDurationInOpenState: 15s
-        permittedNumberOfCallsInHalfOpenState: 3
       stock-service:
-        slidingWindowSize: 10
-        failureRateThreshold: 50
-        waitDurationInOpenState: 10s
-        permittedNumberOfCallsInHalfOpenState: 3
+        baseConfig: default
   timelimiter:
-    instances:
+    configs:
+      default:
+        timeoutDuration: 5s
+        cancelRunningFuture: true
       user-service:
+        baseConfig: default
         timeoutDuration: 3s
       product-service:
-        timeoutDuration: 5s
+        baseConfig: default
       cart-service:
-        timeoutDuration: 5s
+        baseConfig: default
       order-service:
+        baseConfig: default
         timeoutDuration: 10s
       payment-service:
+        baseConfig: default
         timeoutDuration: 10s
       stock-service:
-        timeoutDuration: 5s
+        baseConfig: default

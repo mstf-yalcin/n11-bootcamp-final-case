@@ -18,6 +18,8 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${USER_SERVICE_URL:http://localhost:9000}/.well-known/jwks.json
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
   cloud:
     gateway:
       server:
@@ -32,7 +34,7 @@ spring:
                   args:
                     name: user-service
                     fallbackUri: forward:/fallback/user
-
+           
             - id: product-service
               uri: lb://product-service
               predicates:
@@ -102,7 +104,7 @@ spring:
                   args:
                     name: payment-service
                     fallbackUri: forward:/fallback/payment
-
+            
             - id: stock-service
               uri: lb://stock-service
               predicates:
@@ -121,7 +123,7 @@ spring:
                       firstBackoff: 100ms
                       maxBackoff: 1000ms
                       factor: 2
-                      basedOnPreviousValue: false
+                      basedOnPreviousValue: false                
 
             - id: user-service-api-docs
               uri: lb://user-service
@@ -168,11 +170,6 @@ spring:
       bindings:
         springCloudBusInput:
           group: ${spring.application.name}-bus-${random.uuid}
-
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-  config:
-    import: optional:configserver:${CONFIG_URI:http://localhost:8888}
 
 eureka:
   instance:
@@ -231,48 +228,49 @@ logging:
 
 resilience4j:
   circuitbreaker:
-    instances:
-      user-service:
+    configs:
+      default:
         slidingWindowSize: 10
         failureRateThreshold: 50
-        waitDurationInOpenState: 15s
-        permittedNumberOfCallsInHalfOpenState: 3
-      product-service:
-        slidingWindowSize: 20
-        failureRateThreshold: 50
         waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+      user-service:
+        baseConfig: default
+        waitDurationInOpenState: 15s
+      product-service:
+        baseConfig: default
+        slidingWindowSize: 20
         permittedNumberOfCallsInHalfOpenState: 5
       cart-service:
-        slidingWindowSize: 10
-        failureRateThreshold: 50
-        waitDurationInOpenState: 10s
-        permittedNumberOfCallsInHalfOpenState: 3
+        baseConfig: default
       order-service:
+        baseConfig: default
         slidingWindowSize: 20
-        failureRateThreshold: 50
         waitDurationInOpenState: 15s
         permittedNumberOfCallsInHalfOpenState: 5
       payment-service:
-        slidingWindowSize: 10
-        failureRateThreshold: 50
+        baseConfig: default
         waitDurationInOpenState: 15s
-        permittedNumberOfCallsInHalfOpenState: 3
       stock-service:
-        slidingWindowSize: 10
-        failureRateThreshold: 50
-        waitDurationInOpenState: 10s
-        permittedNumberOfCallsInHalfOpenState: 3
+        baseConfig: default
   timelimiter:
-    instances:
+    configs:
+      default:
+        timeoutDuration: 5s
+        cancelRunningFuture: true
       user-service:
+        baseConfig: default
         timeoutDuration: 3s
       product-service:
-        timeoutDuration: 5s
+        baseConfig: default
       cart-service:
-        timeoutDuration: 5s
+        baseConfig: default
       order-service:
+        baseConfig: default
         timeoutDuration: 10s
       payment-service:
+        baseConfig: default
         timeoutDuration: 10s
       stock-service:
-        timeoutDuration: 5s
+        baseConfig: default
+
