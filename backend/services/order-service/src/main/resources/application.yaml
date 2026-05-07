@@ -31,6 +31,10 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  cloud:
+    openfeign:
+      micrometer:
+        enabled: true
     stream:
       bindings:
         springCloudBusInput:
