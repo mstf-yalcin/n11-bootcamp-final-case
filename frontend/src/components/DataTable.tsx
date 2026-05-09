@@ -1,5 +1,8 @@
 import { Fragment, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+export type SortState = { key: string; direction: "asc" | "desc" };
 
 export type Column<T> = {
   key: string;
@@ -7,6 +10,7 @@ export type Column<T> = {
   cell: (row: T) => ReactNode;
   className?: string;
   width?: string;
+  sortKey?: string;
 };
 
 type Props<T> = {
@@ -21,6 +25,8 @@ type Props<T> = {
   onRowClick?: (row: T) => void;
   expandedRowKey?: string | null;
   renderExpandedRow?: (row: T) => ReactNode;
+  sort?: SortState | null;
+  onSort?: (sortKey: string) => void;
 };
 
 export function DataTable<T>({
@@ -35,6 +41,8 @@ export function DataTable<T>({
   onRowClick,
   expandedRowKey,
   renderExpandedRow,
+  sort,
+  onSort,
 }: Props<T>) {
   return (
     <div className="overflow-hidden rounded-lg border bg-white">
@@ -42,18 +50,45 @@ export function DataTable<T>({
         <table className="w-full text-sm">
           <thead className="border-b bg-secondary/40 text-left">
             <tr>
-              {columns.map((col) => (
-                <th
-                  key={col.key}
-                  className={cn(
-                    "whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase text-muted-foreground",
-                    col.className
-                  )}
-                  style={col.width ? { width: col.width } : undefined}
-                >
-                  {col.header}
-                </th>
-              ))}
+              {columns.map((col) => {
+                const sortable = Boolean(col.sortKey && onSort);
+                const active = sortable && sort?.key === col.sortKey;
+                return (
+                  <th
+                    key={col.key}
+                    className={cn(
+                      "whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase text-muted-foreground",
+                      sortable && "cursor-pointer select-none transition-colors hover:text-foreground",
+                      col.className
+                    )}
+                    style={col.width ? { width: col.width } : undefined}
+                    onClick={sortable ? () => onSort!(col.sortKey!) : undefined}
+                    aria-sort={
+                      active
+                        ? sort!.direction === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : sortable
+                          ? "none"
+                          : undefined
+                    }
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {col.header}
+                      {sortable &&
+                        (active ? (
+                          sort!.direction === "asc" ? (
+                            <ArrowUp className="h-3 w-3" />
+                          ) : (
+                            <ArrowDown className="h-3 w-3" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 opacity-40" />
+                        ))}
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>

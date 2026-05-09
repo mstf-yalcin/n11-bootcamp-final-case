@@ -5,9 +5,12 @@ import com.n11.bootcamp.product_service.dto.request.UpdateCategoryRequest;
 import com.n11.bootcamp.product_service.dto.response.CategoryResponse;
 import com.n11.bootcamp.product_service.entity.Category;
 import com.n11.bootcamp.product_service.exception.CategoryNotFoundException;
+import com.n11.bootcamp.product_service.exception.InvalidTargetCategoryException;
 import com.n11.bootcamp.product_service.exception.SlugAlreadyExistsException;
+import com.n11.bootcamp.product_service.exception.TargetCategoryRequiredException;
 import com.n11.bootcamp.product_service.mapper.CategoryMapper;
 import com.n11.bootcamp.product_service.repository.CategoryRepository;
+import com.n11.bootcamp.product_service.repository.ProductRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,10 +26,14 @@ import java.util.UUID;
 public class CategoryService {
 
     private final CategoryRepository categoryRepository;
+    private final ProductRepository productRepository;
     private final CategoryMapper categoryMapper;
 
-    public CategoryService(CategoryRepository categoryRepository, CategoryMapper categoryMapper) {
+    public CategoryService(CategoryRepository categoryRepository,
+                           ProductRepository productRepository,
+                           CategoryMapper categoryMapper) {
         this.categoryRepository = categoryRepository;
+        this.productRepository = productRepository;
         this.categoryMapper = categoryMapper;
     }
 
@@ -79,12 +86,31 @@ public class CategoryService {
     }
 
     @Transactional
-    public void deleteCategory(UUID id) {
-        log.info("Deleting category (soft): id={}", id);
-        Category category = categoryRepository.findByIdAndIsActiveTrue(id)
+    public void deleteCategory(UUID id, UUID targetCategoryId) {
+        log.info("Deleting category (soft): id={}, targetCategoryId={}", id, targetCategoryId);
+        Category source = categoryRepository.findByIdAndIsActiveTrue(id)
                 .orElseThrow(() -> new CategoryNotFoundException(id));
-        category.setActive(false);
-        categoryRepository.save(category);
+
+        long activeProductCount = productRepository.countByCategoryIdAndIsActiveTrue(id);
+        if (activeProductCount > 0) {
+            if (targetCategoryId == null) {
+                log.warn("Cannot delete category {}: has {} active products and no target provided",
+                        id, activeProductCount);
+                throw new TargetCategoryRequiredException(activeProductCount);
+            }
+            if (targetCategoryId.equals(id)) {
+                throw new InvalidTargetCategoryException("target must differ from source");
+            }
+            categoryRepository.findByIdAndIsActiveTrue(targetCategoryId)
+                    .orElseThrow(() -> new InvalidTargetCategoryException(
+                            "target not found or inactive: " + targetCategoryId));
+
+            int moved = productRepository.bulkMoveActiveProductsToCategory(id, targetCategoryId);
+            log.info("Moved {} product(s) from category {} to {}", moved, id, targetCategoryId);
+        }
+
+        source.setActive(false);
+        categoryRepository.save(source);
         log.info("Category deactivated: id={}", id);
     }
 

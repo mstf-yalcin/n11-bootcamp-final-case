@@ -63,10 +63,22 @@ public class StockService {
         this.lowStockThreshold = lowStockThreshold;
     }
 
-    public List<StockResponse> getAll() {
+    public Page<StockResponse> getAll(List<UUID> productIds, Pageable pageable) {
+        if (productIds == null) {
+            return stockRepository.findAllByIsActiveTrue(pageable)
+                    .map(stockMapper::toResponse);
+        }
+        if (productIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+        return stockRepository.findAllByProductIdInAndIsActiveTrue(productIds, pageable)
+                .map(stockMapper::toResponse);
+    }
+
+    public List<UUID> getAllStockedProductIds() {
         return stockRepository.findAllByIsActiveTrue()
                 .stream()
-                .map(stockMapper::toResponse)
+                .map(Stock::getProductId)
                 .toList();
     }
 

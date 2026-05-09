@@ -33,7 +33,7 @@ export function AdminLayout() {
 
   return (
     <div className="flex min-h-screen bg-secondary/30">
-      <aside className="flex w-64 flex-shrink-0 flex-col border-r bg-white">
+      <aside className="sticky top-0 flex h-screen w-64 flex-shrink-0 flex-col border-r bg-white">
         <Link
           to="/admin/dashboard"
           className="flex items-center gap-2 border-b px-4 py-4"

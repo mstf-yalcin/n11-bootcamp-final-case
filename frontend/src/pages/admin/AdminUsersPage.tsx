@@ -9,12 +9,19 @@ import { notifyApiError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { DataTable, type Column } from "@/components/DataTable";
+import { DataTable, type Column, type SortState } from "@/components/DataTable";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { formatDate } from "@/lib/utils";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { Roles } from "@/types/api";
 import type { AdminUserResponse } from "@/types/api";
+
+function parseSort(raw: string | null): SortState | null {
+  if (!raw) return null;
+  const [key, direction] = raw.split(",");
+  if (!key) return null;
+  return { key, direction: direction === "desc" ? "desc" : "asc" };
+}
 
 export default function AdminUsersPage() {
   usePageTitle("Admin · Kullanıcılar");
@@ -22,19 +29,33 @@ export default function AdminUsersPage() {
   const search = params.get("search") ?? "";
   const role = params.get("role") ?? "";
   const page = Number(params.get("page") ?? "0");
+  const sort = parseSort(params.get("sort"));
+  const sortParam = sort ? `${sort.key},${sort.direction}` : undefined;
   const [searchLocal, setSearchLocal] = useState(search);
+
+  const onSort = (key: string) => {
+    const next = new URLSearchParams(params);
+    let direction: "asc" | "desc" = "asc";
+    if (sort?.key === key) {
+      direction = sort.direction === "asc" ? "desc" : "asc";
+    }
+    next.set("sort", `${key},${direction}`);
+    next.delete("page");
+    setParams(next, { replace: true });
+  };
 
   const queryClient = useQueryClient();
   const { confirm, dialog: confirmDialog } = useConfirm();
 
   const usersQuery = useQuery({
-    queryKey: ["admin", "users", { search, role, page }],
+    queryKey: ["admin", "users", { search, role, page, sort: sortParam }],
     queryFn: () =>
       adminUserApi.list({
         search: search || undefined,
         role: role || undefined,
         page,
         size: 20,
+        sort: sortParam,
       }),
   });
 
@@ -115,6 +136,7 @@ export default function AdminUsersPage() {
     {
       key: "name",
       header: "Kullanıcı",
+      sortKey: "firstName",
       cell: (u) => (
         <div>
           <div className="font-medium">
@@ -151,6 +173,7 @@ export default function AdminUsersPage() {
     {
       key: "isActive",
       header: "Durum",
+      sortKey: "isActive",
       cell: (u) =>
         u.isActive ? (
           <Badge variant="success">Aktif</Badge>
@@ -161,6 +184,7 @@ export default function AdminUsersPage() {
     {
       key: "createdAt",
       header: "Kayıt",
+      sortKey: "createdAt",
       cell: (u) => (
         <span className="text-xs text-muted-foreground">
           {formatDate(u.createdAt)}
@@ -232,6 +256,21 @@ export default function AdminUsersPage() {
           <Button type="submit" variant="outline">
             Ara
           </Button>
+          {search && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setSearchLocal("");
+                const next = new URLSearchParams(params);
+                next.delete("search");
+                next.delete("page");
+                setParams(next, { replace: true });
+              }}
+            >
+              Temizle
+            </Button>
+          )}
         </form>
 
         <select
@@ -253,6 +292,8 @@ export default function AdminUsersPage() {
         isError={usersQuery.isError}
         emptyMessage="Bu kriterlere uygun kullanıcı yok."
         errorMessage={`Kullanıcılar yüklenemedi. Admin endpoint'i (GET ${API_BASE}/admin/users) henüz aktif değil olabilir.`}
+        sort={sort}
+        onSort={onSort}
       />
 
       {pageInfo && pageInfo.totalPages > 1 && (

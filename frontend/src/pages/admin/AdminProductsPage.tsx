@@ -8,7 +8,7 @@ import { notifyApiError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { DataTable, type Column } from "@/components/DataTable";
+import { DataTable, type Column, type SortState } from "@/components/DataTable";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { AdminProductFormDialog } from "./AdminProductFormDialog";
 import { formatTRY } from "@/lib/utils";
@@ -18,12 +18,32 @@ import type { Product } from "@/types/api";
 const PAGE_SIZE = 20;
 const FALLBACK_IMG = "https://placehold.co/80x80/fff3eb/ff6000?text=n11";
 
+function parseSort(raw: string | null): SortState | null {
+  if (!raw) return null;
+  const [key, direction] = raw.split(",");
+  if (!key) return null;
+  return { key, direction: direction === "desc" ? "desc" : "asc" };
+}
+
 export default function AdminProductsPage() {
   usePageTitle("Admin · Ürünler");
   const [params, setParams] = useSearchParams();
   const page = Number(params.get("page") ?? "0");
   const search = params.get("search") ?? "";
+  const sort = parseSort(params.get("sort"));
+  const sortParam = sort ? `${sort.key},${sort.direction}` : undefined;
   const [searchLocal, setSearchLocal] = useState(search);
+
+  const onSort = (key: string) => {
+    const next = new URLSearchParams(params);
+    let direction: "asc" | "desc" = "asc";
+    if (sort?.key === key) {
+      direction = sort.direction === "asc" ? "desc" : "asc";
+    }
+    next.set("sort", `${key},${direction}`);
+    next.delete("page");
+    setParams(next, { replace: true });
+  };
 
   const queryClient = useQueryClient();
   const { confirm, dialog: confirmDialog } = useConfirm();
@@ -32,12 +52,13 @@ export default function AdminProductsPage() {
   const [creating, setCreating] = useState(false);
 
   const productsQuery = useQuery({
-    queryKey: ["admin", "products", { search, page }],
+    queryKey: ["admin", "products", { search, page, sort: sortParam }],
     queryFn: () =>
       adminProductApi.list({
         search: search || undefined,
         page,
         size: PAGE_SIZE,
+        sort: sortParam,
       }),
   });
 
@@ -80,6 +101,7 @@ export default function AdminProductsPage() {
     {
       key: "product",
       header: "Ürün",
+      sortKey: "name",
       cell: (p) => (
         <div className="flex items-center gap-3">
           <Link
@@ -116,6 +138,18 @@ export default function AdminProductsPage() {
               </span>
               <span className="font-mono">{p.slug}</span>
             </div>
+            <code
+              className="mt-0.5 block cursor-pointer font-mono text-[10px] text-muted-foreground hover:text-foreground"
+              title="UUID'yi kopyalamak için tıkla"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                navigator.clipboard.writeText(p.id);
+                toast.success("ID kopyalandı");
+              }}
+            >
+              {p.id}
+            </code>
           </div>
         </div>
       ),
@@ -123,6 +157,7 @@ export default function AdminProductsPage() {
     {
       key: "price",
       header: "Fiyat",
+      sortKey: "price",
       cell: (p) => (
         <span className="font-semibold">
           {formatTRY(p.price, p.currency)}
@@ -145,6 +180,7 @@ export default function AdminProductsPage() {
     {
       key: "isActive",
       header: "Durum",
+      sortKey: "isActive",
       cell: (p) =>
         p.isActive === false ? (
           <Badge variant="destructive">Pasif</Badge>
@@ -239,13 +275,28 @@ export default function AdminProductsPage() {
           <Input
             value={searchLocal}
             onChange={(e) => setSearchLocal(e.target.value)}
-            placeholder="Ürün adı veya slug ara..."
+            placeholder="Ürün adı, slug veya ID ile ara..."
             className="pl-10"
           />
         </div>
         <Button type="submit" variant="outline">
           Ara
         </Button>
+        {search && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setSearchLocal("");
+              const next = new URLSearchParams(params);
+              next.delete("search");
+              next.delete("page");
+              setParams(next, { replace: true });
+            }}
+          >
+            Temizle
+          </Button>
+        )}
       </form>
 
       <DataTable
@@ -256,6 +307,8 @@ export default function AdminProductsPage() {
         isError={productsQuery.isError}
         emptyMessage="Hiç ürün bulunamadı."
         errorMessage="Ürünler yüklenemedi. Backend'e ulaşılamıyor olabilir."
+        sort={sort}
+        onSort={onSort}
       />
 
       {pageInfo && pageInfo.totalPages > 1 && (

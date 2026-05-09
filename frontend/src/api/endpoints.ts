@@ -210,17 +210,36 @@ export const adminCategoryApi = {
         body
       )
       .then(unwrap),
-  remove: (id: string) =>
-    api.delete<ApiResponse<void>>(`${API_BASE}/categories/${id}`),
+  remove: (id: string, targetCategoryId?: string) => {
+    const qs = targetCategoryId ? `?targetCategoryId=${targetCategoryId}` : "";
+    return api.delete<ApiResponse<void>>(
+      `${API_BASE}/categories/${id}${qs}`
+    );
+  },
 };
 
-//  Admin: Stocks 
+//  Admin: Stocks
+export type AdminStockListParams = {
+  page?: number;
+  size?: number;
+  productIds?: string[];
+  sort?: string;
+};
+
 export const adminStockApi = {
-  list: () =>
+  list: (params: AdminStockListParams = {}) => {
+    const { productIds, ...rest } = params;
+    const query: Record<string, unknown> = { ...rest };
+    if (productIds && productIds.length > 0) {
+      query.productIds = productIds.join(",");
+    }
+    return api
+      .get<ApiResponse<StockResponse[]>>(`${API_BASE}/stocks`, { params: query })
+      .then((r) => ({ items: r.data.data, page: r.data.page }));
+  },
+  stockedProductIds: () =>
     api
-      .get<ApiResponse<StockResponse[]>>(
-        `${API_BASE}/stocks`
-      )
+      .get<ApiResponse<string[]>>(`${API_BASE}/stocks/product-ids`)
       .then(unwrap),
   byProductId: (productId: string) =>
     api
@@ -296,6 +315,7 @@ export type AdminPaymentListParams = {
   to?: string;
   page?: number;
   size?: number;
+  sort?: string;
 };
 
 export const adminPaymentApi = {
@@ -322,6 +342,7 @@ export type AdminUserListParams = {
   isActive?: boolean;
   page?: number;
   size?: number;
+  sort?: string;
 };
 
 export const adminUserApi = {

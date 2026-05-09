@@ -1,14 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { adminCategoryApi, categoryApi } from "@/api/endpoints";
 import { notifyApiError } from "@/api/client";
+import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { DataTable, type Column } from "@/components/DataTable";
-import { useConfirm } from "@/components/ConfirmDialog";
 import {
   Dialog,
   DialogContent,
@@ -22,22 +22,43 @@ import type { Category, CreateCategoryRequest } from "@/types/api";
 export default function AdminCategoriesPage() {
   usePageTitle("Admin · Kategoriler");
   const queryClient = useQueryClient();
-  const { confirm, dialog: confirmDialog } = useConfirm();
   const [editing, setEditing] = useState<Category | null>(null);
   const [creating, setCreating] = useState(false);
+  const [deletingCategory, setDeletingCategory] = useState<Category | null>(
+    null
+  );
+  const [deleteNeedsTarget, setDeleteNeedsTarget] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string>("");
 
   const categoriesQuery = useQuery({
     queryKey: ["categories"],
     queryFn: categoryApi.list,
   });
 
+  const closeDelete = () => {
+    setDeletingCategory(null);
+    setDeleteNeedsTarget(false);
+    setDeleteTargetId("");
+  };
+
   const removeMutation = useMutation({
-    mutationFn: (id: string) => adminCategoryApi.remove(id),
+    mutationFn: (vars: { id: string; targetCategoryId?: string }) =>
+      adminCategoryApi.remove(vars.id, vars.targetCategoryId),
     onSuccess: () => {
       toast.success("Kategori silindi");
       queryClient.invalidateQueries({ queryKey: ["categories"] });
+      closeDelete();
     },
-    onError: (err) => notifyApiError(err, "Silme başarısız"),
+    onError: (err) => {
+      const errorCode = axios.isAxiosError(err)
+        ? (err.response?.data as { errorCode?: string } | undefined)?.errorCode
+        : undefined;
+      if (errorCode === "TARGET_CATEGORY_REQUIRED") {
+        setDeleteNeedsTarget(true);
+      } else {
+        notifyApiError(err, "Silme başarısız");
+      }
+    },
   });
 
   const columns: Column<Category>[] = [
@@ -93,15 +114,7 @@ export default function AdminCategoriesPage() {
             <Pencil className="h-4 w-4" />
           </button>
           <button
-            onClick={async () => {
-              const ok = await confirm({
-                title: "Kategoriyi sil",
-                description: `"${c.name}" kategorisini silmek istediğine emin misin?`,
-                destructive: true,
-                confirmLabel: "Sil",
-              });
-              if (ok) removeMutation.mutate(c.id);
-            }}
+            onClick={() => setDeletingCategory(c)}
             className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             aria-label="Sil"
           >
@@ -148,8 +161,109 @@ export default function AdminCategoriesPage() {
         onOpenChange={(o) => !o && setEditing(null)}
         category={editing}
       />
-      {confirmDialog}
+      <DeleteCategoryDialog
+        category={deletingCategory}
+        needsTarget={deleteNeedsTarget}
+        targetId={deleteTargetId}
+        onTargetIdChange={setDeleteTargetId}
+        allCategories={categoriesQuery.data ?? []}
+        onCancel={closeDelete}
+        onConfirm={() =>
+          deletingCategory &&
+          removeMutation.mutate({
+            id: deletingCategory.id,
+            targetCategoryId: deleteNeedsTarget
+              ? deleteTargetId || undefined
+              : undefined,
+          })
+        }
+        isPending={removeMutation.isPending}
+      />
     </div>
+  );
+}
+
+function DeleteCategoryDialog({
+  category,
+  needsTarget,
+  targetId,
+  onTargetIdChange,
+  allCategories,
+  onCancel,
+  onConfirm,
+  isPending,
+}: {
+  category: Category | null;
+  needsTarget: boolean;
+  targetId: string;
+  onTargetIdChange: (id: string) => void;
+  allCategories: Category[];
+  onCancel: () => void;
+  onConfirm: () => void;
+  isPending: boolean;
+}) {
+  const open = Boolean(category);
+  const availableTargets = allCategories.filter((c) => c.id !== category?.id);
+  const canConfirm = !needsTarget || Boolean(targetId);
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {needsTarget
+              ? `"${category?.name}" — ürünleri taşı ve sil`
+              : `"${category?.name}" kategorisini sil`}
+          </DialogTitle>
+        </DialogHeader>
+
+        {needsTarget ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Bu kategoride aktif ürünler var. Silmeden önce ürünlerin
+              taşınacağı kategoriyi seç. Tüm aktif ürünler tek seferde hedefe
+              taşınır.
+            </p>
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase text-muted-foreground">
+                Hedef kategori
+              </label>
+              <select
+                value={targetId}
+                onChange={(e) => onTargetIdChange(e.target.value)}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Seç...</option>
+                {availableTargets.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Bu kategori soft delete edilecek. Altında aktif ürün varsa hedef
+            kategori seçimi istenecek.
+          </p>
+        )}
+
+        <div className="mt-2 flex justify-end gap-2 pt-2">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            İptal
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={!canConfirm || isPending}
+            onClick={onConfirm}
+          >
+            {needsTarget ? "Taşı ve Sil" : "Sil"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -176,22 +290,22 @@ function CategoryFormDialog({
 
   const previewUrl = watch("imageUrl");
 
-  const onClose = (o: boolean) => {
-    if (!o) reset({ name: "", description: "", imageUrl: "" });
-    onOpenChange(o);
-  };
-
-  // Re-init form when dialog opens with different category
-  if (open && category && category.id) {
-    // simple sync
-  }
+  useEffect(() => {
+    if (open) {
+      reset({
+        name: category?.name ?? "",
+        description: category?.description ?? "",
+        imageUrl: category?.imageUrl ?? "",
+      });
+    }
+  }, [open, category, reset]);
 
   const createMutation = useMutation({
     mutationFn: adminCategoryApi.create,
     onSuccess: () => {
       toast.success("Kategori oluşturuldu");
       queryClient.invalidateQueries({ queryKey: ["categories"] });
-      onClose(false);
+      onOpenChange(false);
     },
     onError: (err) => notifyApiError(err, "Oluşturulamadı"),
   });
@@ -201,7 +315,7 @@ function CategoryFormDialog({
     onSuccess: () => {
       toast.success("Kategori güncellendi");
       queryClient.invalidateQueries({ queryKey: ["categories"] });
-      onClose(false);
+      onOpenChange(false);
     },
     onError: (err) => notifyApiError(err, "Güncellenemedi"),
   });
@@ -220,21 +334,7 @@ function CategoryFormDialog({
   };
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        if (o && category) {
-          reset({
-            name: category.name,
-            description: category.description ?? "",
-            imageUrl: category.imageUrl ?? "",
-          });
-        } else if (o && !category) {
-          reset({ name: "", description: "", imageUrl: "" });
-        }
-        onClose(o);
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
@@ -301,7 +401,7 @@ function CategoryFormDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => onClose(false)}
+              onClick={() => onOpenChange(false)}
             >
               İptal
             </Button>

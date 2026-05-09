@@ -9,7 +9,7 @@ import { API_BASE } from "@/api/client";
 import { notifyApiError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DataTable, type Column } from "@/components/DataTable";
+import { DataTable, type Column, type SortState } from "@/components/DataTable";
 import { OrderStatusBadge } from "@/features/orders/OrderStatusBadge";
 import { useProductLookups } from "@/features/products/useProductLookups";
 import {
@@ -50,6 +50,13 @@ const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
 
 const FALLBACK_IMG = "https://placehold.co/80x80/fff3eb/ff6000?text=n11";
 
+function parseSort(raw: string | null): SortState | null {
+  if (!raw) return null;
+  const [key, direction] = raw.split(",");
+  if (!key) return null;
+  return { key, direction: direction === "desc" ? "desc" : "asc" };
+}
+
 const STATUS_LABELS: Record<OrderStatus, string> = {
   PENDING: "Onay Bekliyor",
   STOCK_RESERVED: "Stok Ayrıldı",
@@ -66,7 +73,20 @@ export default function AdminOrdersPage() {
   const status = (params.get("status") ?? "") as OrderStatus | "";
   const search = params.get("search") ?? "";
   const page = Number(params.get("page") ?? "0");
+  const sort = parseSort(params.get("sort"));
+  const sortParam = sort ? `${sort.key},${sort.direction}` : undefined;
   const [searchLocal, setSearchLocal] = useState(search);
+
+  const onSort = (key: string) => {
+    const next = new URLSearchParams(params);
+    let direction: "asc" | "desc" = "asc";
+    if (sort?.key === key) {
+      direction = sort.direction === "asc" ? "desc" : "asc";
+    }
+    next.set("sort", `${key},${direction}`);
+    next.delete("page");
+    setParams(next, { replace: true });
+  };
 
   const [editing, setEditing] = useState<Order | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -74,13 +94,14 @@ export default function AdminOrdersPage() {
   const queryClient = useQueryClient();
 
   const ordersQuery = useQuery({
-    queryKey: ["admin", "orders", { status, search, page }],
+    queryKey: ["admin", "orders", { status, search, page, sort: sortParam }],
     queryFn: () =>
       adminOrderApi.list({
         status: status || undefined,
         search: search || undefined,
         page,
         size: 20,
+        sort: sortParam,
       }),
   });
 
@@ -155,13 +176,14 @@ export default function AdminOrdersPage() {
       header: "Sipariş No",
       cell: (o) => (
         <code className="text-xs font-mono">
-          {o.id.slice(0, 8).toUpperCase()}
+          {o.id}
         </code>
       ),
     },
     {
       key: "buyer",
       header: "Müşteri",
+      sortKey: "buyerFirstName",
       cell: (o) => (
         <div className="text-xs">
           {o.buyerFullName ? (
@@ -171,7 +193,7 @@ export default function AdminOrdersPage() {
             <div className="text-muted-foreground">{o.buyerEmail}</div>
           ) : (
             <code className="font-mono text-muted-foreground">
-              {o.userId.slice(0, 8)}
+              {o.userId}
             </code>
           )}
         </div>
@@ -180,6 +202,7 @@ export default function AdminOrdersPage() {
     {
       key: "createdAt",
       header: "Tarih",
+      sortKey: "createdAt",
       cell: (o) => (
         <span className="text-xs text-muted-foreground">
           {formatDate(o.createdAt)}
@@ -206,6 +229,7 @@ export default function AdminOrdersPage() {
     {
       key: "amount",
       header: "Tutar",
+      sortKey: "totalAmount",
       cell: (o) => (
         <span className="font-semibold">
           {formatTRY(o.totalAmount, o.currency)}
@@ -215,6 +239,7 @@ export default function AdminOrdersPage() {
     {
       key: "status",
       header: "Durum",
+      sortKey: "status",
       cell: (o) => (
         <OrderStatusBadge status={o.status} cancelReason={o.cancelReason} viewer="admin" />
       ),
@@ -342,7 +367,7 @@ export default function AdminOrdersPage() {
                             </span>
                           )}
                           <code className="block text-[10px] text-muted-foreground">
-                            {it.productId.slice(0, 8)}
+                            {it.productId}
                           </code>
                         </div>
                       </div>
@@ -405,6 +430,21 @@ export default function AdminOrdersPage() {
         <Button type="submit" variant="outline">
           Ara
         </Button>
+        {search && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setSearchLocal("");
+              const next = new URLSearchParams(params);
+              next.delete("search");
+              next.delete("page");
+              setParams(next, { replace: true });
+            }}
+          >
+            Temizle
+          </Button>
+        )}
       </form>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -433,6 +473,8 @@ export default function AdminOrdersPage() {
         renderExpandedRow={renderOrderDetails}
         emptyMessage="Bu kriterlere uygun sipariş yok."
         errorMessage={`Siparişler yüklenemedi. Admin endpoint'i (GET ${API_BASE}/admin/orders) henüz aktif değil olabilir.`}
+        sort={sort}
+        onSort={onSort}
       />
 
       {pageInfo && pageInfo.totalPages > 1 && (
@@ -507,7 +549,7 @@ function OrderStatusEditDialog({
         </DialogHeader>
         {order && (
           <div className="mb-2 rounded-md bg-secondary/40 p-3 text-xs">
-            Sipariş <code className="font-mono">{order.id.slice(0, 8).toUpperCase()}</code>{" "}
+            Sipariş <code className="font-mono">{order.id}</code>{" "}
             — şu an{" "}
             <OrderStatusBadge
               status={order.status}

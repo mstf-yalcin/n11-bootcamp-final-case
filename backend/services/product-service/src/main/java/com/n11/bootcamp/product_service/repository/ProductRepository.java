@@ -4,6 +4,7 @@ import com.n11.bootcamp.product_service.entity.Product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -25,6 +26,12 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     @Query("SELECT p.id FROM Product p WHERE p.id IN :ids AND p.isActive = true")
     List<UUID> findExistingIdsByIdIn(@Param("ids") List<UUID> ids);
 
+    long countByCategoryIdAndIsActiveTrue(UUID categoryId);
+
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Product p SET p.category.id = :targetId WHERE p.category.id = :sourceId AND p.isActive = true")
+    int bulkMoveActiveProductsToCategory(@Param("sourceId") UUID sourceId, @Param("targetId") UUID targetId);
+
     @Query("""
             SELECT p FROM Product p
             WHERE p.isActive = true
@@ -33,6 +40,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
               AND (:maxPrice IS NULL OR p.price <= :maxPrice)
               AND (:minRating IS NULL OR p.ratingAverage >= :minRating)
               AND (:search IS NULL
+                   OR CAST(p.id AS string) LIKE :search
                    OR LOWER(p.name) LIKE :search
                    OR LOWER(p.description) LIKE :search)
             """)
@@ -53,6 +61,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
               AND (:maxPrice IS NULL OR p.price <= :maxPrice)
               AND (:minRating IS NULL OR p.ratingAverage >= :minRating)
               AND (:search IS NULL
+                   OR CAST(p.id AS string) LIKE :search
                    OR LOWER(p.name) LIKE :search
                    OR LOWER(p.description) LIKE :search)
             """)

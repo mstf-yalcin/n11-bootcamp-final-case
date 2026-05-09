@@ -123,6 +123,10 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
   TAG_NOT_FOUND: "Etiket bulunamadı.",
   SLUG_ALREADY_EXISTS: "Bu slug zaten kullanılıyor.",
   SLUG_GENERATION_FAILED: "Slug oluşturulamadı, başlığı değiştirip tekrar dene.",
+  TARGET_CATEGORY_REQUIRED:
+    "Bu kategoride aktif ürünler var. Önce taşınacak hedef kategoriyi seç.",
+  INVALID_TARGET_CATEGORY:
+    "Hedef kategori geçersiz (bulunamadı, pasif veya kaynakla aynı).",
 
   // Stock
   INSUFFICIENT_STOCK: "Stok yetersiz, ürünü daha az adetle tekrar dene.",

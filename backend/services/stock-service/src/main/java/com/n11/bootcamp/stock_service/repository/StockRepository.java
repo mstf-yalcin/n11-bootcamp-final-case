@@ -2,6 +2,8 @@ package com.n11.bootcamp.stock_service.repository;
 
 import com.n11.bootcamp.stock_service.entity.Stock;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -18,7 +20,11 @@ public interface StockRepository extends JpaRepository<Stock, UUID> {
 
     List<Stock> findAllByIsActiveTrue();
 
+    Page<Stock> findAllByIsActiveTrue(Pageable pageable);
+
     List<Stock> findAllByProductIdInAndIsActiveTrue(List<UUID> productIds);
+
+    Page<Stock> findAllByProductIdInAndIsActiveTrue(List<UUID> productIds, Pageable pageable);
 
     boolean existsByProductIdAndIsActiveTrue(UUID productId);
 

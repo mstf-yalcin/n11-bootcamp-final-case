@@ -10,6 +10,11 @@ import com.n11.bootcamp.stock_service.service.StockService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -37,9 +42,20 @@ public class StockController {
     }
 
     @GetMapping
-    @Operation(summary = "List all active stock entries (admin)")
-    public ResponseEntity<ApiResponse<List<StockResponse>>> getAll() {
-        return ResponseEntity.ok(ApiResponse.success(stockService.getAll(), "Stocks fetched"));
+    @Operation(summary = "List active stock entries with pagination and optional productId filter (admin)")
+    public ResponseEntity<ApiResponse<List<StockResponse>>> getAll(
+            @RequestParam(name = "productIds", required = false) List<UUID> productIds,
+            @ParameterObject @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        Page<StockResponse> page = stockService.getAll(productIds, pageable);
+        return ResponseEntity.ok(ApiResponse.success(page, "Stocks fetched"));
+    }
+
+    @GetMapping("/product-ids")
+    @Operation(summary = "Return UUIDs of all products that have an active stock entry (admin)")
+    public ResponseEntity<ApiResponse<List<UUID>>> getStockedProductIds() {
+        return ResponseEntity.ok(
+                ApiResponse.success(stockService.getAllStockedProductIds(), "Stocked product ids fetched")
+        );
     }
 
     @GetMapping("/availability")

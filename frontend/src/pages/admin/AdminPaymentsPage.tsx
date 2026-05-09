@@ -7,7 +7,7 @@ import { API_BASE } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { DataTable, type Column } from "@/components/DataTable";
+import { DataTable, type Column, type SortState } from "@/components/DataTable";
 import { formatDate, formatTRY } from "@/lib/utils";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import type { Payment, PaymentStatus } from "@/types/api";
@@ -20,6 +20,13 @@ const STATUS_OPTIONS: { value: PaymentStatus | ""; label: string }[] = [
   { value: "CANCELLED", label: "İptal" },
   { value: "REFUNDED", label: "İade" },
 ];
+
+function parseSort(raw: string | null): SortState | null {
+  if (!raw) return null;
+  const [key, direction] = raw.split(",");
+  if (!key) return null;
+  return { key, direction: direction === "desc" ? "desc" : "asc" };
+}
 
 function statusVariant(
   s: PaymentStatus
@@ -43,16 +50,30 @@ export default function AdminPaymentsPage() {
   const status = (params.get("status") ?? "") as PaymentStatus | "";
   const search = params.get("search") ?? "";
   const page = Number(params.get("page") ?? "0");
+  const sort = parseSort(params.get("sort"));
+  const sortParam = sort ? `${sort.key},${sort.direction}` : undefined;
   const [searchLocal, setSearchLocal] = useState(search);
 
+  const onSort = (key: string) => {
+    const next = new URLSearchParams(params);
+    let direction: "asc" | "desc" = "asc";
+    if (sort?.key === key) {
+      direction = sort.direction === "asc" ? "desc" : "asc";
+    }
+    next.set("sort", `${key},${direction}`);
+    next.delete("page");
+    setParams(next, { replace: true });
+  };
+
   const paymentsQuery = useQuery({
-    queryKey: ["admin", "payments", { status, search, page }],
+    queryKey: ["admin", "payments", { status, search, page, sort: sortParam }],
     queryFn: () =>
       adminPaymentApi.list({
         status: status || undefined,
         search: search || undefined,
         page,
         size: 20,
+        sort: sortParam,
       }),
   });
 
@@ -92,6 +113,7 @@ export default function AdminPaymentsPage() {
     {
       key: "amount",
       header: "Tutar",
+      sortKey: "amount",
       cell: (p) => (
         <span className="font-semibold">{formatTRY(p.amount, p.currency)}</span>
       ),
@@ -99,6 +121,7 @@ export default function AdminPaymentsPage() {
     {
       key: "provider",
       header: "Sağlayıcı",
+      sortKey: "provider",
       cell: (p) => (
         <span className="text-muted-foreground">{p.provider}</span>
       ),
@@ -106,11 +129,13 @@ export default function AdminPaymentsPage() {
     {
       key: "status",
       header: "Durum",
+      sortKey: "status",
       cell: (p) => <Badge variant={statusVariant(p.status)}>{p.status}</Badge>,
     },
     {
       key: "createdAt",
       header: "Tarih",
+      sortKey: "createdAt",
       cell: (p) => (
         <span className="text-xs text-muted-foreground">
           {formatDate(p.createdAt)}
@@ -145,6 +170,21 @@ export default function AdminPaymentsPage() {
         <Button type="submit" variant="outline">
           Ara
         </Button>
+        {search && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setSearchLocal("");
+              const next = new URLSearchParams(params);
+              next.delete("search");
+              next.delete("page");
+              setParams(next, { replace: true });
+            }}
+          >
+            Temizle
+          </Button>
+        )}
       </form>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -171,6 +211,8 @@ export default function AdminPaymentsPage() {
         isError={paymentsQuery.isError}
         emptyMessage="Bu kriterlere uygun ödeme yok."
         errorMessage={`Ödemeler yüklenemedi. Admin endpoint'i (GET ${API_BASE}/admin/payments) henüz aktif değil olabilir.`}
+        sort={sort}
+        onSort={onSort}
       />
 
       {pageInfo && pageInfo.totalPages > 1 && (

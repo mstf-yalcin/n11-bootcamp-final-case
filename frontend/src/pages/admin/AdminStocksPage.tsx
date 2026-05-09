@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ExternalLink, Pencil, Plus, Search } from "lucide-react";
 import { adminProductApi, adminStockApi, productApi } from "@/api/endpoints";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { FloatingInput } from "@/components/ui/floating-input";
-import { DataTable, type Column } from "@/components/DataTable";
+import { DataTable, type Column, type SortState } from "@/components/DataTable";
 import {
   Dialog,
   DialogContent,
@@ -24,20 +24,88 @@ import type { Product, StockResponse } from "@/types/api";
 type StockRow = StockResponse & { product?: Product };
 
 const FALLBACK_IMG = "https://placehold.co/64x64/fff0fe/ff25f5?text=n11";
+const PAGE_SIZE = 20;
+
+function parseSort(raw: string | null): SortState | null {
+  if (!raw) return null;
+  const [key, direction] = raw.split(",");
+  if (!key) return null;
+  return { key, direction: direction === "desc" ? "desc" : "asc" };
+}
 
 export default function AdminStocksPage() {
   usePageTitle("Admin · Stoklar");
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<StockRow | null>(null);
   const [creating, setCreating] = useState(false);
-  const [search, setSearch] = useState("");
 
-  const stocksQuery = useQuery({
-    queryKey: ["admin", "stocks"],
-    queryFn: adminStockApi.list,
+  const [params, setParams] = useSearchParams();
+  const page = Number(params.get("page") ?? "0");
+  const search = params.get("search") ?? "";
+  const sort = parseSort(params.get("sort"));
+  const sortParam = sort ? `${sort.key},${sort.direction}` : undefined;
+  const [searchLocal, setSearchLocal] = useState(search);
+
+  const setPage = (p: number) => {
+    const next = new URLSearchParams(params);
+    next.set("page", String(p));
+    setParams(next, { replace: true });
+  };
+
+  const onSort = (key: string) => {
+    const next = new URLSearchParams(params);
+    let direction: "asc" | "desc" = "asc";
+    if (sort?.key === key) {
+      direction = sort.direction === "asc" ? "desc" : "asc";
+    }
+    next.set("sort", `${key},${direction}`);
+    next.delete("page");
+    setParams(next, { replace: true });
+  };
+
+  const onSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const next = new URLSearchParams(params);
+    const trimmed = searchLocal.trim();
+    if (trimmed) next.set("search", trimmed);
+    else next.delete("search");
+    next.delete("page"); // arama yapılınca sayfa sıfırla
+    setParams(next, { replace: true });
+  };
+
+  const productsForSearchQuery = useQuery({
+    queryKey: ["products", "for-stock-search", search, page],
+    queryFn: () => productApi.list({ search, page, size: PAGE_SIZE }),
+    enabled: Boolean(search),
   });
 
-  const productIds = stocksQuery.data?.map((s) => s.productId) ?? [];
+  const filteredProductIds = search
+    ? productsForSearchQuery.data?.items.map((p) => p.id)
+    : undefined;
+
+  const stocksQuery = useQuery({
+    queryKey: [
+      "admin",
+      "stocks",
+      page,
+      search,
+      filteredProductIds?.join(",") ?? "",
+      sortParam ?? "",
+    ],
+    queryFn: () =>
+      adminStockApi.list({
+        page: search ? 0 : page,
+        size: PAGE_SIZE,
+        productIds: filteredProductIds,
+        sort: search ? undefined : sortParam,
+      }),
+    enabled:
+      !search ||
+      (productsForSearchQuery.isSuccess &&
+        Boolean(filteredProductIds?.length)),
+  });
+
+  const productIds = stocksQuery.data?.items.map((s) => s.productId) ?? [];
   const productsQuery = useQuery({
     queryKey: ["products", "batch", productIds.sort().join(",")],
     queryFn: () => productApi.byIds(productIds),
@@ -51,33 +119,42 @@ export default function AdminStocksPage() {
     enabled: creating,
   });
 
+  const stockedIdsQuery = useQuery({
+    queryKey: ["admin", "stocks", "product-ids"],
+    queryFn: adminStockApi.stockedProductIds,
+    enabled: creating,
+  });
+
   const productMap = new Map(
     (productsQuery.data ?? []).map((p) => [p.id, p])
   );
-  const allRows: StockRow[] | undefined = stocksQuery.data?.map((s) => ({
-    ...s,
-    product: productMap.get(s.productId),
-  }));
 
-  const rows = useMemo(() => {
-    if (!allRows) return undefined;
-    const q = search.trim().toLowerCase();
-    if (!q) return allRows;
-    return allRows.filter((r) => {
-      const name = r.product?.name?.toLowerCase() ?? "";
-      const slug = r.product?.slug?.toLowerCase() ?? "";
-      const category = r.product?.categoryName?.toLowerCase() ?? "";
-      return (
-        name.includes(q) ||
-        slug.includes(q) ||
-        category.includes(q)
-      );
-    });
-  }, [allRows, search]);
+  const searchYieldedZero =
+    Boolean(search) &&
+    productsForSearchQuery.isSuccess &&
+    !filteredProductIds?.length;
 
-  const stockedProductIds = new Set(stocksQuery.data?.map((s) => s.productId));
+  const searchMatchButNoStock =
+    Boolean(search) &&
+    productsForSearchQuery.isSuccess &&
+    Boolean(filteredProductIds?.length) &&
+    stocksQuery.isSuccess &&
+    (stocksQuery.data?.items.length ?? 0) === 0;
+
+  const rows: StockRow[] | undefined = searchYieldedZero
+    ? []
+    : stocksQuery.data?.items.map((s) => ({
+        ...s,
+        product: productMap.get(s.productId),
+      }));
+
+  const pageInfo = search
+    ? productsForSearchQuery.data?.page
+    : stocksQuery.data?.page;
+
+  const stockedProductIds = new Set(stockedIdsQuery.data ?? []);
   const productsWithoutStock = (allProductsQuery.data?.items ?? []).filter(
-    (p) => !stockedProductIds.has(p.id)
+    (p) => p.isActive !== false && !stockedProductIds.has(p.id)
   );
 
   const invalidate = () => {
@@ -144,9 +221,18 @@ export default function AdminStocksPage() {
                   {s.product.categoryName}
                 </span>
               )}
-              <span className="font-mono">
-                {s.productId.slice(0, 8)}
-              </span>
+              <code
+                className="cursor-pointer font-mono text-[10px] hover:text-foreground"
+                title="UUID'yi kopyalamak için tıkla"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  navigator.clipboard.writeText(s.productId);
+                  toast.success("ID kopyalandı");
+                }}
+              >
+                {s.productId}
+              </code>
             </div>
           </div>
         </div>
@@ -155,11 +241,13 @@ export default function AdminStocksPage() {
     {
       key: "quantity",
       header: "Toplam Stok",
+      sortKey: "quantity",
       cell: (s) => <span className="font-semibold">{s.quantity}</span>,
     },
     {
       key: "reserved",
       header: "Rezerv",
+      sortKey: "reserved",
       cell: (s) => <span className="text-muted-foreground">{s.reserved}</span>,
     },
     {
@@ -182,6 +270,7 @@ export default function AdminStocksPage() {
     {
       key: "updatedAt",
       header: "Güncelleme",
+      sortKey: "updatedAt",
       cell: (s) => (
         <span className="text-xs text-muted-foreground">
           {formatDate(s.updatedAt)}
@@ -211,10 +300,10 @@ export default function AdminStocksPage() {
         <div>
           <h1 className="text-2xl font-bold">Stoklar</h1>
           <p className="text-sm text-muted-foreground">
-            {allRows
+            {pageInfo
               ? search
-                ? `${rows?.length ?? 0} / ${allRows.length} ürün`
-                : `${allRows.length} ürün`
+                ? `"${search}" için ${pageInfo.totalElements} ürün`
+                : `${pageInfo.totalElements} ürünün stok kaydı`
               : "Yükleniyor..."}
           </p>
         </div>
@@ -224,31 +313,77 @@ export default function AdminStocksPage() {
         </Button>
       </div>
 
-      <div className="mb-4 max-w-md">
-        <div className="relative">
+      <form onSubmit={onSearch} className="mb-4 flex gap-2">
+        <div className="relative max-w-md flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ürün adı, slug veya kategori ara..."
+            value={searchLocal}
+            onChange={(e) => setSearchLocal(e.target.value)}
+            placeholder="Ürün adı, slug, açıklama veya ID ile ara..."
             className="pl-10"
           />
         </div>
-      </div>
+        <Button type="submit" variant="outline">
+          Ara
+        </Button>
+        {search && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setSearchLocal("");
+              const next = new URLSearchParams(params);
+              next.delete("search");
+              next.delete("page");
+              setParams(next, { replace: true });
+            }}
+          >
+            Temizle
+          </Button>
+        )}
+      </form>
 
       <DataTable
         columns={columns}
         rows={rows}
         rowKey={(s) => s.id}
-        isLoading={stocksQuery.isLoading}
-        isError={stocksQuery.isError}
+        isLoading={stocksQuery.isLoading || productsForSearchQuery.isLoading}
+        isError={stocksQuery.isError || productsForSearchQuery.isError}
         emptyMessage={
-          search
-            ? `"${search}" için stok bulunamadı.`
-            : "Henüz stok kaydı yok."
+          !search
+            ? "Henüz stok kaydı yok."
+            : searchMatchButNoStock
+              ? `"${search}" ile eşleşen ürünlerin stok kaydı henüz yok. + Yeni Stok ile ekleyebilirsin.`
+              : `"${search}" için ürün bulunamadı.`
         }
         errorMessage="Stoklar yüklenemedi. Backend'e ulaşılamıyor olabilir."
+        sort={search ? null : sort}
+        onSort={search ? undefined : onSort}
       />
+
+      {pageInfo && pageInfo.totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!pageInfo.hasPrevious}
+            onClick={() => setPage(page - 1)}
+          >
+            Önceki
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Sayfa {pageInfo.pageNumber + 1} / {pageInfo.totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!pageInfo.hasNext}
+            onClick={() => setPage(page + 1)}
+          >
+            Sonraki
+          </Button>
+        </div>
+      )}
 
       <StockEditDialog
         stock={editing}
