@@ -1,0 +1,36 @@
+{
+  "name": "products-es-sink-connector",
+  "config": {
+    "connector.class": "io.confluent.connect.elasticsearch.ElasticsearchSinkConnector",
+    "tasks.max": "1",
+
+    "topics": "products",
+
+    "connection.url": "http://elasticsearch:9200",
+
+    "type.name": "_doc",
+
+    "key.ignore": "false",
+    "schema.ignore": "true",
+
+    "auto.create.indices.at.startup": "false",
+
+    "behavior.on.null.values": "delete",
+    "behavior.on.malformed.documents": "warn",
+
+    "batch.size": "100",
+    "linger.ms": "200",
+    "max.buffered.records": "1000",
+    "max.retries": "5",
+    "retry.backoff.ms": "1000",
+
+    "transforms": "extractKey",
+    "transforms.extractKey.type": "org.apache.kafka.connect.transforms.ExtractField$Key",
+    "transforms.extractKey.field": "id",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+  }
+}

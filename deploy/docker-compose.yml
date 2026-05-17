@@ -80,7 +80,9 @@ services:
       - n11-network
 
   debezium-connect:
-    image: debezium/connect:2.7.3.Final
+    build:
+      context: ./debezium
+    image: n11/debezium-connect:2.7.3-es14.1.7
     container_name: n11-debezium
     depends_on:
       kafka:
@@ -125,20 +127,24 @@ services:
     depends_on:
       debezium-connect:
         condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
       order-service:
         condition: service_healthy
       stock-service:
         condition: service_healthy
       payment-service:
         condition: service_healthy
+      product-service:
+        condition: service_healthy
     volumes:
       - ./debezium:/connectors:ro
     entrypoint: ["sh", "-c"]
     command:
       - |
-        echo "Waiting 5s for app services to settle (outbox tables already created)..."
+        echo "Waiting 5s for app + infra services to settle..."
         sleep 5
-        for f in /connectors/*-outbox-connector.json; do
+        for f in /connectors/*-connector.json; do
           name=$$(basename "$$f")
           echo "Deploying $$name..."
           curl -s -o /dev/null -w "$$name → HTTP %{http_code}\n" \
@@ -148,6 +154,57 @@ services:
         echo "All connectors deployed. Listing:"
         curl -s http://debezium-connect:8083/connectors
     restart: "no"
+    networks:
+      - n11-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.18.2
+    container_name: n11-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      cluster.name: n11-cluster
+      bootstrap.memory_lock: "true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "9201:9200"   # host 9201 → container 9200 (stock-service host 9200'ü kullanıyor)
+    healthcheck:
+      test:
+        ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health | grep -E '\"status\":\"(yellow|green)\"' >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks:
+      - n11-network
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.18.2
+    container_name: n11-kibana
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      SERVER_NAME: kibana
+      SERVER_PUBLICBASEURL: http://localhost:5601
+    ports:
+      - "5601:5601"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5601/api/status >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 45s
     networks:
       - n11-network
 
@@ -365,18 +422,22 @@ services:
         condition: service_healthy
       user-service:
         condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
     environment:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-pass123}
+      ELASTICSEARCH_URI: http://elasticsearch:9200
+      PRODUCT_SEARCH_ENGINE: ${PRODUCT_SEARCH_ENGINE:-elastic}
     ports:
       - "9100:9100"
     healthcheck:
       test: "curl --fail --silent localhost:9100/actuator/health/readiness | grep UP || exit 1"
       interval: 10s
       timeout: 5s
-      retries: 15
-      start_period: 30s
+      retries: 20
+      start_period: 90s
 
   cart-service:
     image: n11/cart-service:1.0.0-SNAPSHOT
@@ -555,6 +616,7 @@ volumes:
   loki-data:
   alloy-data:
   grafana-data:
+  elasticsearch-data:
 
 networks:
   n11-network:

@@ -139,8 +139,10 @@ Config:            Spring Cloud Config (`infrastructure/config-server`)
 | `redis` | `6379` | Cart + Product cache |
 | `kafka` (host listener) | `9092` | Host CLI tools için |
 | `kafka` (internal) | — | `PLAINTEXT://kafka:29092` — container'lar arası |
-| `debezium-connect` | `8083` | CDC connector REST API |
+| `debezium-connect` | `8083` | CDC + ES Sink connector REST API. Multi-stage Dockerfile ile Confluent ES Sink 14.1.7 image'a gömülü (`n11/debezium-connect:2.7.3-es14.1.7`) |
 | `kafka-ui` | `8090` | Provectus Kafka UI |
+| `elasticsearch` | `9201` (host) → `9200` (container) | Product search projection — stock-service 9200 çakıştığı için host port farklı |
+| `kibana` | `5601` | Elasticsearch UI / index management |
 
 ### 4.4 Observability
 
@@ -180,6 +182,7 @@ Config:            Spring Cloud Config (`infrastructure/config-server`)
 | CDC | Debezium PostgreSQL connector | 2.x |
 | Messaging | Apache Kafka (KRaft, Zookeeper'sız) | 3.8.0 |
 | Cache | Redis | 7 |
+| Search projection | Elasticsearch + Spring Data Elasticsearch + Aiven ES Sink | server 8.18.2 / starter 5.5.x / sink 7.0.0 |
 | Resilience | Resilience4j (CB / Retry / TimeLimiter) | (Spring Cloud) |
 | HTTP client | OpenFeign + Resilience4j | (Spring Cloud) |
 | Mapping | MapStruct | 1.6.3 |
@@ -435,18 +438,143 @@ CREATE TABLE outbox_<service> (
 | `stock.events` | stock-service | order, notification |
 | `payment.events` | payment-service | order, stock, notification |
 | `shipment.events` | shipment-service | order, notification |
+| `products` | Debezium (products tablosu CDC) | Confluent ES Sink → Elasticsearch |
 
 ---
 
-## 9. Hızlı Başlangıç
+## 9. Elasticsearch — Ürün Search Projection (CQRS Hybrid)
 
-### 9.1 Ön Koşullar
+Product search'ün performansı ve fuzzy match'i için Elasticsearch entegre edildi. **Aynı Debezium altyapısı**, **outbox tablosu yerine ürün tablosunu doğrudan** dinler — saga'nın yanında Debezium'un ikinci kullanım vakası.
+
+### 9.1 Akış
+
+```
+products tablosu (PostgreSQL)
+    │  Hibernate save() / update() / soft-delete
+    ▼
+Debezium product-cdc-connector
+    │  unwrap(drop) + rename + dropFields(id) + routeTopic SMT zinciri
+    │  → kirli artifact'lar source'ta temizlenir, Kafka mesajı clean JSON
+    ▼
+Kafka topic: products
+    │
+    ▼
+Confluent Elasticsearch Sink Connector 14.1.7
+    │  ExtractField$Key SMT → ES doc _id = UUID
+    ▼
+Elasticsearch index: products  (ProductIndexInitializer ile explicit mapping)
+    │  - name (turkish analyzer + search_as_you_type autocomplete sub-field)
+    │  - description (turkish analyzer)
+    │  - categoryId, slug, currency (Keyword)
+    │  - price, ratingAverage (Double)
+    │
+    ▼  ElasticProductService.search()  ─►  matching ID listesi
+    │   (multi_match fuzzy + bool_prefix + match_phrase_prefix)
+    │                                       │
+    │                                       ▼
+    │                                  ProductRepository.findAllByIdInAndIsActiveTrue()
+    │                                       │  PG'den taze veri + stock enrichment
+    │                                       ▼
+    │                                  ProductResponse
+```
+
+**CQRS hybrid**: Elastic sadece filter + sort, asıl `Product` PostgreSQL'den çekilir. Fiyat/stok/isActive gibi taze veri stale olamaz.
+
+**Search query 3 paralel mekanizma:**
+- `multi_match fuzziness=AUTO prefixLength=1` — typo toleransı ("kaehve" → "kahve")
+- `multi_match type=bool_prefix` on `name.autocomplete*` — anlık prefix ("pors" → "porselen")
+- `match_phrase_prefix` on `description` — description'da yarım kelime fallback
+
+### 9.2 Decorator Pattern (kod tarafı)
+
+```
+ProductService (interface)
+    ├─ JpaProductService              # default — tüm operasyonlar PG
+    └─ ElasticProductService          # @Primary, app.product.search.engine=elastic
+         ├─ JpaProductService delegate   # CRUD + tekil okumalar PG'ye delege
+         └─ ElasticsearchOperations      # sadece list/search Elastic'te
+```
+
+| Operasyon | engine=jpa | engine=elastic |
+|---|---|---|
+| `getProducts` / `getAdminProducts` | PG ILIKE | **Elastic** bool query → PG bulk fetch |
+| `getProductById` / `getProductBySlug` | PG | PG (delegate) |
+| `createProduct` / `updateProduct` / `deleteProduct` | PG | PG (delegate) — Debezium ES'i besler |
+
+### 9.3 Plugin Yönetimi — Multi-stage Dockerfile
+
+Debezium image'ında Confluent ES Sink connector yok. `deploy/debezium/Dockerfile` ile **multi-stage build** kullanılır:
+
+```
+Stage 1: confluentinc/cp-kafka-connect-base:7.7.0
+    │  confluent-hub install confluentinc/kafka-connect-elasticsearch:14.1.7
+    ▼
+/plugins/confluentinc-kafka-connect-elasticsearch
+    │
+    ▼ COPY --from=stage1
+Stage 2: debezium/connect:2.7.3.Final
+    │  /kafka/connect altında plugin hazır
+    │  CONNECT_PLUGIN_PATH=/kafka/connect
+    ▼
+Final image: n11/debezium-connect:2.7.3-es14.1.7
+```
+
+`docker-compose.yml`:
+```yaml
+debezium-connect:
+  build:
+    context: ./debezium
+  image: n11/debezium-connect:2.7.3-es14.1.7
+```
+
+### 9.4 Engine Switch
+
+`docker-compose.yml` `product-service` env'inde default:
+```yaml
+PRODUCT_SEARCH_ENGINE: ${PRODUCT_SEARCH_ENGINE:-elastic}
+```
+
+JPA'ya dönmek için:
+```bash
+PRODUCT_SEARCH_ENGINE=jpa docker compose up -d product-service
+```
+
+### 9.5 Doğrulama
+
+```bash
+# Cluster health
+curl http://localhost:9201/_cluster/health
+
+# Index mapping
+curl http://localhost:9201/products/_mapping
+
+# Index doc count (snapshot sonrası)
+curl http://localhost:9201/products/_count
+
+# Connector listesi
+curl http://localhost:8083/connectors
+
+# Gateway üzerinden search
+curl "http://localhost:8080/api/v1/products?search=kahve&size=5"
+
+# Did-you-mean suggester
+curl "http://localhost:8080/api/v1/products/suggest?q=kahvve"
+
+# Kibana UI
+open http://localhost:5601
+```
+
+---
+
+## 10. Hızlı Başlangıç
+
+### 10.1 Ön Koşullar
 
 - **Java 21** + **Maven 3.9+** 
 - **Docker Desktop** 
 - `curl`, `jq` 
 
-### 9.2 Tek Komutla Tam Stack
+### 10.2 Tek Komutla Tam Stack
 
 ```bash
 # Repo root'tan
@@ -464,11 +592,13 @@ Servisler ayağa kalktıktan sonra:
 | `http://localhost:8761` | Eureka Dashboard |
 | `http://localhost:8090` | Kafka UI (Provectus) |
 | `http://localhost:8083/connectors` | Debezium connector listesi |
+| `http://localhost:9201` | Elasticsearch HTTP API |
+| `http://localhost:5601` | Kibana (Elasticsearch UI) |
 | `http://localhost:3000` | Grafana (admin/admin) |
 | `http://localhost:9090` | Prometheus |
 | `http://localhost:5173` | Frontend (lokal `npm run dev`) |
 
-### 9.3 Sadece Frontend
+### 10.3 Sadece Frontend
 
 ```bash
 cd frontend
@@ -482,7 +612,7 @@ npx vite   # http://localhost:5173
 VITE_API_BASE_URL=http://localhost:8080
 ```
 
-## 10. Observability
+## 11. Observability
 
 | Sütun | Üretici | Toplayıcı | Storage / UI |
 |---|---|---|---|
@@ -500,7 +630,7 @@ Cross-link:
 
 ---
 
-## 11. Güvenlik
+## 12. Güvenlik
 
 - **RS256 + JWKS** — `user-service` private key (`certs/private.pem`, PKCS8) ile imzalar, `/.well-known/jwks.json` endpoint'i public key'i servis eder.
 - **Auth Server vs Resource Server** — `user-service` Auth Server, `api-gateway` ve downstream servisler Resource Server. Her downstream servis token'ı **kendi başına** doğrular (Zero Trust — gateway bypass edilse bile servis yetkisiz isteği reddeder).
@@ -517,7 +647,7 @@ Cross-link:
 
 ---
 
-## 12. Live Config Refresh (Cloud Bus + Kafka)
+## 13. Live Config Refresh (Cloud Bus + Kafka)
 
 `config-server` → Kafka `springCloudBus` → tüm servisler → `@RefreshScope` bean'leri restart-suz refresh.
 
@@ -550,7 +680,7 @@ Yapılandırma:
 
 ---
 
-## 13. CI/CD
+## 14. CI/CD
 
 ```
 master push

@@ -4,6 +4,7 @@ import com.n11.bootcamp.common_lib.dto.response.ApiResponse;
 import com.n11.bootcamp.product_service.dto.request.CreateProductRequest;
 import com.n11.bootcamp.product_service.dto.request.UpdateProductRequest;
 import com.n11.bootcamp.product_service.dto.response.ProductResponse;
+import com.n11.bootcamp.product_service.dto.response.SearchSuggestionResponse;
 import com.n11.bootcamp.product_service.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -64,6 +65,12 @@ public class ProductController {
     public ResponseEntity<ApiResponse<List<UUID>>> getExistingProductIds(
             @RequestParam List<UUID> ids) {
         return ResponseEntity.ok(ApiResponse.success(productService.getExistingProductIds(ids), "Existing product IDs fetched"));
+    }
+
+    @GetMapping("/suggest")
+    @Operation(summary = "'Did you mean?' spell-correction (Elasticsearch term suggester on product name)")
+    public ResponseEntity<ApiResponse<SearchSuggestionResponse>> suggest(@RequestParam String q) {
+        return ResponseEntity.ok(ApiResponse.success(productService.suggest(q), "Suggestion"));
     }
 
     @GetMapping("/{slug}")

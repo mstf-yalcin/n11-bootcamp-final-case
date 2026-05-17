@@ -32,6 +32,10 @@ spring:
       timeout: 2000ms
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URI:http://localhost:9201}
+    connection-timeout: 5s
+    socket-timeout: 30s
   security:
     oauth2:
       resourceserver:
@@ -113,3 +117,6 @@ resilience4j:
 app:
   stock:
     cache-ttl-seconds: ${STOCK_CACHE_TTL_SECONDS:120}
+  product:
+    search:
+      engine: ${PRODUCT_SEARCH_ENGINE:elastic}

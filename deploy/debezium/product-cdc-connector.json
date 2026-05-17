@@ -1,0 +1,48 @@
+{
+  "name": "product-cdc-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "${env:DB_HOST}",
+    "database.port": "${env:DB_PORT}",
+    "database.user": "${env:DB_USERNAME}",
+    "database.password": "${env:DB_PASSWORD}",
+    "database.dbname": "${env:DB_NAME}",
+    "database.server.name": "product-service-cdc",
+    "topic.prefix": "product-service-cdc",
+
+    "schema.include.list": "public",
+    "table.include.list": "public.products",
+
+    "plugin.name": "pgoutput",
+    "publication.autocreate.mode": "filtered",
+    "publication.name": "products_cdc_pub",
+    "slot.name": "products_cdc_slot",
+
+    "tombstones.on.delete": "true",
+    "snapshot.mode": "initial",
+    "decimal.handling.mode": "double",
+    "time.precision.mode": "connect",
+
+    "transforms": "unwrap,rename,dropFields,routeTopic",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "false",
+    "transforms.unwrap.delete.handling.mode": "drop",
+
+    "transforms.rename.type": "org.apache.kafka.connect.transforms.ReplaceField$Value",
+    "transforms.rename.renames": "category_id:categoryId,is_active:isActive,rating_count:ratingCount,rating_average:ratingAverage,image_url:imageUrl,created_at:createdAt,updated_at:updatedAt",
+
+    "transforms.dropFields.type": "org.apache.kafka.connect.transforms.ReplaceField$Value",
+    "transforms.dropFields.exclude": "id",
+
+    "transforms.routeTopic.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.routeTopic.regex": ".*",
+    "transforms.routeTopic.replacement": "products",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+  }
+}

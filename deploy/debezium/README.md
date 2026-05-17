@@ -1,14 +1,50 @@
-# Debezium Outbox Connectors
+# Debezium Connectors
 
-Outbox pattern'inin Kafka tarafına çıkışını yapan Debezium connector config'leri. Her **outbox tablosu için ayrı bir connector** dosyası.
+1. **Outbox source connectors** — saga için. `*_outbox` tablolarını dinler, EventRouter SMT ile `<aggregate>.events` topic'ine semantik event basar.
+2. **Product CDC source + ES sink** — search için. `public.products` tablosunu dinler, `products` topic'ine state'i yansıtır; Confluent Elasticsearch Sink Connector aynı topic'i Elasticsearch'e indexler.
+
+## Plugin Yönetimi — Custom Image (Dockerfile)
+
+`debezium-connect` servisi, bu klasördeki [Dockerfile](Dockerfile) ile üretilen custom image'ı kullanır (`n11/debezium-connect:2.7.3-es14.1.7`). Multi-stage build:
+
+```
+Stage 1: confluentinc/cp-kafka-connect-base:7.7.0
+   └─ confluent-hub install confluentinc/kafka-connect-elasticsearch:14.1.7
+        └─ /plugins/confluentinc-kafka-connect-elasticsearch
+
+Stage 2: debezium/connect:2.7.3.Final
+   └─ COPY --from=stage1 /plugins → /kafka/connect
+         CONNECT_PLUGIN_PATH=/kafka/connect
+```
+
+Stage 1 yalnızca `confluent-hub` CLI'yı barındıran transient build stage'i; final image'a sadece extracted plugin klasörü kopyalanır. Final image Debezium runtime + Confluent ES Sink hazır.
+
+**Build:** `docker compose build debezium-connect`.
+
+**Yeni plugin eklemek için:** Dockerfile'ın stage 1'ine ek `RUN confluent-hub install ...` ekle, `compose build` ile yeniden bas. Tag suffix'ini de güncelle (örn `2.7.3-es14.1.7-jdbc1.2`).
+
+`connector-init` ile akış:
+| Container | Görev | Tetiklenme |
+|---|---|---|
+| `debezium-connect` (custom image) | Connect runtime + plugin'ler | infra healthy olduğunda |
+| `connector-init` | Connector JSON'larını Debezium'a POST et | debezium-connect + app servisleri healthy olunca |
 
 ## Mevcut Connector'lar
+
+### Outbox source (saga)
 
 | Dosya | İzlenen Tablo | Replication Slot | Publication | Üretilen Topic |
 |---|---|---|---|---|
 | [order-outbox-connector.json](order-outbox-connector.json) | `public.outbox_order` | `outbox_order_slot` | `outbox_order_pub` | `order.events` |
 | [stock-outbox-connector.json](stock-outbox-connector.json) | `public.outbox_stock` | `outbox_stock_slot` | `outbox_stock_pub` | `stock.events` |
 | [payment-outbox-connector.json](payment-outbox-connector.json) | `public.outbox_payment` | `outbox_payment_slot` | `outbox_payment_pub` | `payment.events` |
+
+### Product CDC source + ES Sink (search projection)
+
+| Dosya | Görev |
+|---|---|
+| [product-cdc-connector.json](product-cdc-connector.json) | PostgreSQL `public.products` → Kafka topic `products`. SMT zinciri: `unwrap` (envelope dış) + `rename` (snake_case → camelCase) + `routeTopic` (tek topic adı). |
+| [products-es-sink-connector.json](products-es-sink-connector.json) | Kafka topic `products` → Elasticsearch index `products`. Confluent Elasticsearch Sink Connector 14.1.7 (custom image'da gömülü). |
 
 ---
 
