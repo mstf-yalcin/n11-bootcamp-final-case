@@ -20,6 +20,7 @@ import type {
   PaymentStatus,
   Product,
   RegisterRequest,
+  SearchSuggestion,
   StockResponse,
   UpdateProductRequest,
   UpdateStockRequest,
@@ -64,6 +65,13 @@ export const productApi = {
     api
       .get<ApiResponse<Product[]>>(`${API_BASE}/products/batch`, {
         params: { ids: ids.join(",") },
+      })
+      .then(unwrap),
+
+  suggest: (q: string) =>
+    api
+      .get<ApiResponse<SearchSuggestion>>(`${API_BASE}/products/suggest`, {
+        params: { q },
       })
       .then(unwrap),
 };

@@ -182,7 +182,7 @@ Config:            Spring Cloud Config (`infrastructure/config-server`)
 | CDC | Debezium PostgreSQL connector | 2.x |
 | Messaging | Apache Kafka (KRaft, Zookeeper'sız) | 3.8.0 |
 | Cache | Redis | 7 |
-| Search projection | Elasticsearch + Spring Data Elasticsearch + Aiven ES Sink | server 8.18.2 / starter 5.5.x / sink 7.0.0 |
+| Search projection | Elasticsearch + Spring Data Elasticsearch + Confluent ES Sink | server 8.18.2 / starter 5.5.x / sink 14.1.7 |
 | Resilience | Resilience4j (CB / Retry / TimeLimiter) | (Spring Cloud) |
 | HTTP client | OpenFeign + Resilience4j | (Spring Cloud) |
 | Mapping | MapStruct | 1.6.3 |

@@ -5,7 +5,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, History, Search, Tag, X } from "lucide-react";
 import { categoryApi, productApi } from "@/api/endpoints";
@@ -36,11 +36,18 @@ type Suggestion =
 
 export function SearchAutocomplete() {
   const navigate = useNavigate();
-  const [query, setQuery] = useState("");
+  const location = useLocation();
+  const urlQ =
+    new URLSearchParams(location.search).get("q") ?? "";
+  const [query, setQuery] = useState(urlQ);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setQuery(urlQ);
+  }, [urlQ]);
 
   const debouncedQuery = useDebounce(query.trim(), 300);
   const isSearching = debouncedQuery.length >= MIN_CHARS;

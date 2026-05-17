@@ -46,9 +46,6 @@ export default function ProductListPage() {
   const activeCategory = categoriesQuery.data?.find(
     (c) => c.slug === categorySlug
   );
-  // Slug-based URL → categoryId via cached category list. Slug bilinmiyorsa
-  // (kategoriler hâlâ yükleniyorsa) categorySlug var, activeCategory yok →
-  // query enabled=false ile bekletilir; cache hit'te tek frame gecikme.
   const resolvedCategoryId = activeCategory?.id;
   const categoryFilterReady = !categorySlug || Boolean(resolvedCategoryId);
 
@@ -56,6 +53,17 @@ export default function ProductListPage() {
   if (q) titleParts.push(`"${q}" araması`);
   if (activeCategory) titleParts.push(activeCategory.name);
   usePageTitle(titleParts.length ? titleParts.join(" - ") : "Tüm Ürünler");
+
+  const suggestQuery = useQuery({
+    queryKey: ["suggest", q],
+    queryFn: () => productApi.suggest(q),
+    enabled: Boolean(q),
+    staleTime: 5 * 60 * 1000,
+  });
+  const suggestion = suggestQuery.data?.suggestion;
+  const showSuggestion =
+    Boolean(suggestion) &&
+    suggestion!.toLowerCase() !== q.toLowerCase();
 
   const productsQuery = useInfiniteQuery({
     queryKey: ["products", { q, categoryId: resolvedCategoryId ?? "", minPrice, maxPrice, minRating, sort }],
@@ -80,6 +88,19 @@ export default function ProductListPage() {
     productsQuery.data?.pages.flatMap((p) => p.items) ?? [];
   const totalElements =
     productsQuery.data?.pages[0]?.page?.totalElements ?? 0;
+
+  const categoryBlocked = Boolean(categorySlug) && categoriesQuery.isError;
+  const isLoading =
+    (Boolean(categorySlug) && categoriesQuery.isLoading) ||
+    productsQuery.isLoading;
+  const isError = productsQuery.isError || categoryBlocked;
+  const errorObj = productsQuery.error ?? categoriesQuery.error;
+  const retryAll = () => {
+    if (categoriesQuery.isError) categoriesQuery.refetch();
+    productsQuery.refetch();
+  };
+
+  const displayQuery = showSuggestion ? suggestion! : q;
 
   // Intersection observer for infinite scroll trigger
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -130,7 +151,7 @@ export default function ProductListPage() {
       <div className="mb-4 flex items-baseline justify-between">
         <div>
           <h1 className="text-2xl font-semibold">
-            {q ? `"${q}" için sonuçlar` : "Tüm Ürünler"}
+            {q ? `"${displayQuery}" için sonuçlar` : "Tüm Ürünler"}
           </h1>
           <p className="text-sm text-muted-foreground">
             {productsQuery.isLoading
@@ -294,16 +315,16 @@ export default function ProductListPage() {
         </aside>
 
         <div>
-          {productsQuery.isLoading && <ProductGridSkeleton count={15} />}
-          {productsQuery.isError && (
+          {isLoading && <ProductGridSkeleton count={15} />}
+          {isError && (
             <ApiErrorBox
-              error={productsQuery.error}
-              onRetry={productsQuery.refetch}
+              error={errorObj}
+              onRetry={retryAll}
               title="Ürünler yüklenemedi"
             />
           )}
 
-          {productsQuery.data && allItems.length === 0 && (
+          {!isLoading && !isError && productsQuery.data && allItems.length === 0 && (
             <div className="rounded-lg border bg-white p-10 text-center">
               <SearchX className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
               <p className="mb-1 font-medium">Sonuç bulunamadı</p>

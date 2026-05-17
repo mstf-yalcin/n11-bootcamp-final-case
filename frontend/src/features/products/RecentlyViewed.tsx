@@ -10,14 +10,14 @@ export function RecentlyViewed() {
   const clear = useRecentlyViewedStore((s) => s.clear);
 
   const sortedKey = [...ids].sort().join(",");
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["recently-viewed", sortedKey],
     queryFn: () => productApi.byIds(ids),
     enabled: ids.length > 0,
     staleTime: 60_000,
   });
 
-  if (ids.length === 0) return null;
+  if (ids.length === 0 || isError) return null;
 
   // Backend'den gelen ürünleri original sıraya göre düzenle (en son görülen başta)
   const productMap = new Map((data ?? []).map((p) => [p.id, p]));

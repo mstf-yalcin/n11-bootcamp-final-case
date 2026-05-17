@@ -39,6 +39,11 @@ export type Tag = {
 
 export type StockStatus = "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK" | "UNKNOWN";
 
+export type SearchSuggestion = {
+  original: string;
+  suggestion: string | null;
+};
+
 export type Product = {
   id: string;
   slug: string;
