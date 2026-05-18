@@ -1,15 +1,8 @@
 
 services:
 
-  # network
-  network-deploy-service:
-    networks:
-      - n11-network
-
   # restart + readiness probe açma
   microservice-base:
-    extends:
-      service: network-deploy-service
     deploy:
       resources:
         limits:
@@ -25,7 +18,7 @@ services:
     extends:
       service: microservice-base
     environment:
-      SPRING_PROFILES_ACTIVE: dev
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       CONFIG_URI: http://config-server:8888
       EUREKA_URI: http://discovery-server:8761/eureka
       USER_SERVICE_URL: http://user-service:9000

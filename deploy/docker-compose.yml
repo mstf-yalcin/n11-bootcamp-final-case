@@ -5,6 +5,7 @@ services:
   postgres:
     image: debezium/postgres:16
     container_name: n11-postgres
+    restart: unless-stopped
     command:
       - postgres
       - -c
@@ -27,12 +28,11 @@ services:
       timeout: 3s
       retries: 10
       start_period: 10s
-    networks:
-      - n11-network
 
   redis:
     image: redis:7.4-alpine
     container_name: n11-redis
+    restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-pass123}"]
     ports:
       - "6379:6379"
@@ -43,12 +43,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
-    networks:
-      - n11-network
 
   kafka:
     image: bitnamilegacy/kafka:3.8
     container_name: n11-kafka
+    restart: unless-stopped
     hostname: kafka
     environment:
       KAFKA_CFG_NODE_ID: 0
@@ -76,14 +75,13 @@ services:
       timeout: 5s
       retries: 15
       start_period: 20s
-    networks:
-      - n11-network
 
   debezium-connect:
     build:
       context: ./debezium
     image: n11/debezium-connect:2.7.3-es14.1.7
     container_name: n11-debezium
+    restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
@@ -118,8 +116,6 @@ services:
       timeout: 5s
       retries: 15
       start_period: 30s
-    networks:
-      - n11-network
 
   connector-init:
     image: curlimages/curl:8.10.1
@@ -154,12 +150,11 @@ services:
         echo "All connectors deployed. Listing:"
         curl -s http://debezium-connect:8083/connectors
     restart: "no"
-    networks:
-      - n11-network
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.18.2
     container_name: n11-elasticsearch
+    restart: unless-stopped
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
@@ -184,12 +179,11 @@ services:
       timeout: 5s
       retries: 20
       start_period: 30s
-    networks:
-      - n11-network
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.18.2
     container_name: n11-kibana
+    restart: unless-stopped
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -205,12 +199,11 @@ services:
       timeout: 5s
       retries: 10
       start_period: 45s
-    networks:
-      - n11-network
 
   kafka-ui:
     image: provectuslabs/kafka-ui:v0.7.2
     container_name: n11-kafka-ui
+    restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
@@ -224,13 +217,12 @@ services:
       DYNAMIC_CONFIG_ENABLED: "true"
     ports:
       - "8090:8080"
-    networks:
-      - n11-network
 
   # OBSERVABILITY (versiyon pinned)
   prometheus:
     image: prom/prometheus:v3.1.0
     container_name: n11-prometheus
+    restart: unless-stopped
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -246,38 +238,35 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    networks:
-      - n11-network
 
   tempo:
     image: grafana/tempo:2.7.1
     container_name: n11-tempo
+    restart: unless-stopped
     command: ["-config.file=/etc/tempo.yml"]
     volumes:
       - ./observability/tempo/tempo.yml:/etc/tempo.yml:ro
       - tempo-data:/var/tempo
     ports:
-      - "3200:3200"  
-      - "4317:4317"  
-      - "4318:4318"   
-    networks:
-      - n11-network
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
 
   loki:
     image: grafana/loki:3.3.2
     container_name: n11-loki
+    restart: unless-stopped
     command: ["-config.file=/etc/loki/loki-config.yaml"]
     volumes:
       - ./observability/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
       - loki-data:/loki
     ports:
       - "3100:3100"
-    networks:
-      - n11-network
 
   alloy:
     image: grafana/alloy:v1.5.1
     container_name: n11-alloy
+    restart: unless-stopped
     depends_on:
       loki:
         condition: service_started
@@ -292,8 +281,6 @@ services:
       - alloy-data:/var/lib/alloy/data
     ports:
       - "12345:12345"   # Alloy debug UI
-    networks:
-      - n11-network
 
   cadvisor:
     image: ghcr.io/google/cadvisor:0.55.1
@@ -310,12 +297,11 @@ services:
     ports:
       - "8081:8080"
     restart: unless-stopped
-    networks:
-      - n11-network
 
   grafana:
     image: grafana/grafana:11.5.2
     container_name: n11-grafana
+    restart: unless-stopped
     depends_on:
       prometheus:
         condition: service_healthy
@@ -337,8 +323,6 @@ services:
       - grafana-data:/var/lib/grafana
     ports:
       - "3000:3000"
-    networks:
-      - n11-network
 
   # PLATFORM SERVICES
   config-server:
@@ -348,8 +332,8 @@ services:
       file: common-config.yml
       service: microservice-base
     environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-native}
-      CONFIG_NATIVE_PATH: file:/config 
+      SPRING_PROFILES_ACTIVE: ${CONFIG_PROFILE:-native}
+      CONFIG_NATIVE_PATH: file:/config
       CONFIG_REPO_URI: ${CONFIG_REPO_URI:-}
       CONFIG_REPO_BRANCH: ${CONFIG_REPO_BRANCH:-master}
       CONFIG_REPO_USERNAME: ${CONFIG_REPO_USERNAME:-}
@@ -592,13 +576,12 @@ services:
       dockerfile: Dockerfile
     image: n11/frontend:1.0.0-SNAPSHOT
     container_name: n11-frontend
+    restart: unless-stopped
     depends_on:
       api-gateway:
         condition: service_healthy
     ports:
       - "80:80"
-    networks:
-      - n11-network
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/"]
       interval: 15s
@@ -619,5 +602,6 @@ volumes:
   elasticsearch-data:
 
 networks:
-  n11-network:
+  default:
+    name: n11-network
     driver: bridge
