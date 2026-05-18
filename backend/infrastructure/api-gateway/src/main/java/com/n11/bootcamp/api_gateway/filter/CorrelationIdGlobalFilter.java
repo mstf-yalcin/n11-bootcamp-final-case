@@ -33,7 +33,7 @@ public class CorrelationIdGlobalFilter implements GlobalFilter, Ordered {
                 .build();
 
         mutated.getResponse().beforeCommit(() -> {
-            mutated.getResponse().getHeaders().add(HEADER, correlationId);
+            mutated.getResponse().getHeaders().set(HEADER, correlationId);
             return Mono.empty();
         });
 
