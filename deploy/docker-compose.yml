@@ -356,7 +356,7 @@ services:
       CONFIG_REPO_PASSWORD: ${CONFIG_REPO_PASSWORD:-}
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
     volumes:
-      - ./n11-config:/config:ro
+      - ../n11-config:/config:ro
     ports:
       - "8888:8888"
     healthcheck:
