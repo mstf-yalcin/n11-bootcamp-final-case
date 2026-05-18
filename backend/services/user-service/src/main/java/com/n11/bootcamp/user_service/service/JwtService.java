@@ -1,5 +1,6 @@
 package com.n11.bootcamp.user_service.service;
 
+import com.n11.bootcamp.user_service.config.JwtProperties;
 import com.n11.bootcamp.user_service.exception.TokenGenerationException;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -9,7 +10,6 @@ import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.security.interfaces.RSAPrivateKey;
@@ -27,29 +27,23 @@ public class JwtService {
 
     private final RSAPrivateKey privateKey;
     private final RSAPublicKey publicKey;
-    private final Long expireTime;
-    private final String issuer;
-    private final String keyId;
+    private final JwtProperties jwt;
 
     public JwtService(RSAPrivateKey privateKey,
                       RSAPublicKey publicKey,
-                      @Value("${jwt.expire.time}") Long expireTime,
-                      @Value("${jwt.issuer}") String issuer,
-                      @Value("${jwt.key-id}") String keyId) {
+                      JwtProperties jwt) {
         this.privateKey = privateKey;
         this.publicKey = publicKey;
-        this.expireTime = expireTime;
-        this.issuer = issuer;
-        this.keyId = keyId;
+        this.jwt = jwt;
     }
 
     public String generateToken(UUID userId, String email, List<String> roles) {
         Instant now = Instant.now();
-        Instant exp = now.plus(expireTime, ChronoUnit.MINUTES);
+        Instant exp = now.plus(jwt.expireMinutes(), ChronoUnit.MINUTES);
 
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
                 .subject(email)
-                .issuer(issuer)
+                .issuer(jwt.issuer())
                 .issueTime(Date.from(now))
                 .expirationTime(Date.from(exp))
                 .claim("userId", userId.toString())
@@ -57,7 +51,7 @@ public class JwtService {
                 .build();
 
         SignedJWT signedJWT = new SignedJWT(
-                new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(keyId).build(),
+                new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(jwt.keyId()).build(),
                 claims
         );
 
@@ -75,7 +69,7 @@ public class JwtService {
             JWTClaimsSet claims = signedJWT.getJWTClaimsSet();
 
             return signedJWT.verify(new RSASSAVerifier(publicKey))
-                    && issuer.equals(claims.getIssuer())
+                    && jwt.issuer().equals(claims.getIssuer())
                     && claims.getExpirationTime().toInstant().isAfter(Instant.now());
         } catch (ParseException | JOSEException e) {
             log.warn("JWT validation failed: {}", e.getMessage());

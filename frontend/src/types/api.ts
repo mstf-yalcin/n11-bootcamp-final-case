@@ -125,7 +125,6 @@ export type UserInfo = {
 
 export type AuthTokens = {
   accessToken: string;
-  refreshToken: string;
 };
 
 export type RegisterRequest = {

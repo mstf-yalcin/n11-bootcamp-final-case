@@ -6,7 +6,9 @@ import com.n11.bootcamp.user_service.dto.request.CreateAddressRequest;
 import com.n11.bootcamp.user_service.dto.request.UpdateAddressRequest;
 import com.n11.bootcamp.user_service.dto.response.AddressResponse;
 import com.n11.bootcamp.user_service.dto.response.CheckoutContextResponse;
+import com.n11.bootcamp.user_service.dto.response.UserResponse;
 import com.n11.bootcamp.user_service.service.AddressService;
+import com.n11.bootcamp.user_service.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,9 +31,18 @@ import java.util.UUID;
 public class UserController {
 
     private final AddressService addressService;
+    private final AuthService authService;
 
-    public UserController(AddressService addressService) {
+    public UserController(AddressService addressService, AuthService authService) {
         this.addressService = addressService;
+        this.authService = authService;
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<UserResponse>> getMyProfile(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(ApiResponse.success(
+                authService.getUserInfo(principal.email()), "Profile fetched"));
     }
 
     @GetMapping("/me/addresses")

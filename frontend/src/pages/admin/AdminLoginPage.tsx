@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Logo } from "@/components/Logo";
-import { authApi } from "@/api/endpoints";
+import { authApi, userApi } from "@/api/endpoints";
 import { notifyApiError } from "@/api/client";
 import { useAuthStore } from "@/store/authStore";
+import { useCurrentUser } from "@/features/auth/queries";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { Roles, type LoginRequest } from "@/types/api";
 
@@ -18,11 +19,10 @@ export default function AdminLoginPage() {
   usePageTitle("Yönetici Girişi");
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
-  const setTokens = useAuthStore((s) => s.setTokens);
-  const setUser = useAuthStore((s) => s.setUser);
+  const setAccessToken = useAuthStore((s) => s.setAccessToken);
   const clear = useAuthStore((s) => s.clear);
   const accessToken = useAuthStore((s) => s.accessToken);
-  const user = useAuthStore((s) => s.user);
+  const { data: user } = useCurrentUser();
 
   // Zaten admin olarak login'liyse direkt panele yönlendir
   useEffect(() => {
@@ -40,9 +40,9 @@ export default function AdminLoginPage() {
   const login = useMutation({
     mutationFn: (body: LoginRequest) => authApi.login(body),
     onSuccess: async (tokens) => {
-      setTokens(tokens);
+      setAccessToken(tokens.accessToken);
       try {
-        const me = await authApi.me();
+        const me = await userApi.me();
         if (!me.roles?.includes(Roles.ADMIN)) {
           clear();
           toast.error("Bu hesap admin yetkisine sahip değil.", {
@@ -50,7 +50,6 @@ export default function AdminLoginPage() {
           });
           return;
         }
-        setUser(me);
         toast.success("Yönetici girişi başarılı");
         navigate("/admin", { replace: true });
       } catch (err) {

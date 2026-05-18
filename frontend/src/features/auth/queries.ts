@@ -1,27 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { authApi, cartApi } from "@/api/endpoints";
+import { authApi, cartApi, userApi } from "@/api/endpoints";
 import { extractApiError, notifyApiError } from "@/api/client";
 import { useAuthStore } from "@/store/authStore";
 import { useAnonymousCartStore } from "@/store/anonymousCartStore";
 import type { LoginRequest, RegisterRequest } from "@/types/api";
 
-export const meQueryKey = ["auth", "me"] as const;
+export const meQueryKey = ["user", "me"] as const;
 
-export function useMe() {
+export function useCurrentUser() {
   const accessToken = useAuthStore((s) => s.accessToken);
   return useQuery({
     queryKey: meQueryKey,
-    queryFn: authApi.me,
+    queryFn: userApi.me,
     enabled: Boolean(accessToken),
-    staleTime: 5 * 60 * 1000,
+    staleTime: Infinity,
   });
 }
 
 export function useLogin() {
-  const setTokens = useAuthStore((s) => s.setTokens);
-  const setUser = useAuthStore((s) => s.setUser);
+  const setAccessToken = useAuthStore((s) => s.setAccessToken);
   const queryClient = useQueryClient();
   const anonItems = useAnonymousCartStore((s) => s.items);
   const clearAnon = useAnonymousCartStore((s) => s.clear);
@@ -30,13 +29,7 @@ export function useLogin() {
   return useMutation({
     mutationFn: (body: LoginRequest) => authApi.login(body),
     onSuccess: async (tokens) => {
-      setTokens(tokens);
-      try {
-        const me = await authApi.me();
-        setUser(me);
-      } catch {
-        /* ignore — token good but profile fetch failed */
-      }
+      setAccessToken(tokens.accessToken);
 
       if (anonItems.length > 0) {
         try {
@@ -53,6 +46,7 @@ export function useLogin() {
       }
 
       queryClient.invalidateQueries({ queryKey: ["cart"] });
+      queryClient.invalidateQueries({ queryKey: meQueryKey });
       toast.success("Giriş başarılı, hoş geldin!");
       const next = new URLSearchParams(window.location.search).get("next");
       navigate(next ?? "/", { replace: true });
@@ -67,8 +61,7 @@ const REGISTER_FIELD_ERROR_CODES = new Set([
 ]);
 
 export function useRegister() {
-  const setTokens = useAuthStore((s) => s.setTokens);
-  const setUser = useAuthStore((s) => s.setUser);
+  const setAccessToken = useAuthStore((s) => s.setAccessToken);
   const queryClient = useQueryClient();
   const anonItems = useAnonymousCartStore((s) => s.items);
   const clearAnon = useAnonymousCartStore((s) => s.clear);
@@ -77,13 +70,7 @@ export function useRegister() {
   return useMutation({
     mutationFn: (body: RegisterRequest) => authApi.register(body),
     onSuccess: async (tokens) => {
-      setTokens(tokens);
-      try {
-        const me = await authApi.me();
-        setUser(me);
-      } catch {
-        /* ignore */
-      }
+      setAccessToken(tokens.accessToken);
 
       if (anonItems.length > 0) {
         try {
@@ -100,6 +87,7 @@ export function useRegister() {
       }
 
       queryClient.invalidateQueries({ queryKey: ["cart"] });
+      queryClient.invalidateQueries({ queryKey: meQueryKey });
       toast.success("Kayıt başarılı, hoş geldin!");
       const next = new URLSearchParams(window.location.search).get("next");
       navigate(next ?? "/", { replace: true });
@@ -115,19 +103,16 @@ export function useRegister() {
 }
 
 export function useLogout() {
-  const refreshToken = useAuthStore((s) => s.refreshToken);
   const clear = useAuthStore((s) => s.clear);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   return useMutation({
     mutationFn: async () => {
-      if (refreshToken) {
-        try {
-          await authApi.logout(refreshToken);
-        } catch {
-          /* swallow — local logout still proceeds */
-        }
+      try {
+        await authApi.logout();
+      } catch {
+        /* swallow — local logout still proceeds */
       }
     },
     onSettled: () => {

@@ -1,4 +1,4 @@
-import { useMe } from "@/features/auth/queries";
+import { useCurrentUser } from "@/features/auth/queries";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { usePageTitle } from "@/hooks/usePageTitle";
@@ -15,7 +15,7 @@ function roleLabel(role: string): string {
 
 export default function AccountProfilePage() {
   usePageTitle("Profilim");
-  const meQuery = useMe();
+  const meQuery = useCurrentUser();
 
   if (meQuery.isLoading) {
     return (

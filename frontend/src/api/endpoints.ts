@@ -27,15 +27,19 @@ import type {
   UserInfo,
 } from "@/types/api";
 
-//  Auth 
+//  Auth
 export const authApi = {
   register: (body: RegisterRequest) =>
     api.post<ApiResponse<AuthTokens>>(`${API_BASE}/auth/register`, body).then(unwrap),
   login: (body: LoginRequest) =>
     api.post<ApiResponse<AuthTokens>>(`${API_BASE}/auth/login`, body).then(unwrap),
-  me: () => api.get<ApiResponse<UserInfo>>(`${API_BASE}/auth/me`).then(unwrap),
-  logout: (refreshToken: string) =>
-    api.post<ApiResponse<void>>(`${API_BASE}/auth/logout`, { refreshToken }),
+  logout: () =>
+    api.post<ApiResponse<void>>(`${API_BASE}/auth/logout`, {}),
+};
+
+//  User profile
+export const userApi = {
+  me: () => api.get<ApiResponse<UserInfo>>(`${API_BASE}/users/me`).then(unwrap),
 };
 
 //  Products

@@ -2,6 +2,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { ShieldX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/authStore";
+import { useCurrentUser } from "@/features/auth/queries";
 
 export function RequireRole({
   role,
@@ -11,7 +12,7 @@ export function RequireRole({
   children: React.ReactNode;
 }) {
   const accessToken = useAuthStore((s) => s.accessToken);
-  const user = useAuthStore((s) => s.user);
+  const { data: user, isLoading } = useCurrentUser();
   const location = useLocation();
 
   const isAdminArea = location.pathname.startsWith("/admin");
@@ -22,8 +23,7 @@ export function RequireRole({
     return <Navigate to={`${loginPath}?next=${next}`} replace />;
   }
 
-  // user henüz hidrate olmadıysa (RootLayout's HydrateUser) geç bir an boş dönelim
-  if (!user) {
+  if (isLoading || !user) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <span className="text-sm text-muted-foreground">

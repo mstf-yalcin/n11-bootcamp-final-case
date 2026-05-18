@@ -4,14 +4,14 @@ import { useAuthStore } from "@/store/authStore";
 import { useAnonymousCartStore } from "@/store/anonymousCartStore";
 import { useQuery } from "@tanstack/react-query";
 import { addressApi, cartApi } from "@/api/endpoints";
-import { useLogout } from "@/features/auth/queries";
+import { useCurrentUser, useLogout } from "@/features/auth/queries";
 import { Logo } from "@/components/Logo";
 import { SearchAutocomplete } from "@/features/search/SearchAutocomplete";
 import { Roles } from "@/types/api";
 
 export function Header() {
-  const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const { data: user } = useCurrentUser();
   const anonCount = useAnonymousCartStore((s) => s.totalCount());
   const logout = useLogout();
 

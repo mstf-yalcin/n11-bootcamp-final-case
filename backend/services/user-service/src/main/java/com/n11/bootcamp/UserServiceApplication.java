@@ -8,11 +8,13 @@ import com.n11.bootcamp.user_service.repository.UserRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
 
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class UserServiceApplication implements CommandLineRunner {
 
     private final UserRepository userRepository;

@@ -1,5 +1,6 @@
 package com.n11.bootcamp.user_service.service;
 
+import com.n11.bootcamp.user_service.config.JwtProperties;
 import com.n11.bootcamp.user_service.dto.internal.RefreshTokenDto;
 import com.n11.bootcamp.user_service.dto.request.RefreshTokenRequest;
 import com.n11.bootcamp.user_service.entity.RefreshToken;
@@ -8,7 +9,6 @@ import com.n11.bootcamp.user_service.exception.InvalidTokenException;
 import com.n11.bootcamp.user_service.repository.RefreshTokenRepository;
 import com.n11.bootcamp.user_service.util.TokenHasher;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,14 +21,14 @@ import java.util.Base64;
 @Service
 public class RefreshTokenService {
 
-    private final Long REFRESH_TOKEN_EXPIRATION;
+    private final JwtProperties jwt;
     private final RefreshTokenRepository refreshTokenRepository;
     private final TokenHasher tokenHasher;
 
-    public RefreshTokenService(@Value("${jwt.refresh-token.expire.time}") Long refreshTokenExpiration,
+    public RefreshTokenService(JwtProperties jwt,
                                RefreshTokenRepository refreshTokenRepository,
                                TokenHasher tokenHasher) {
-        this.REFRESH_TOKEN_EXPIRATION = refreshTokenExpiration;
+        this.jwt = jwt;
         this.refreshTokenRepository = refreshTokenRepository;
         this.tokenHasher = tokenHasher;
     }
@@ -42,7 +42,7 @@ public class RefreshTokenService {
 
         var refreshTokenEntity = RefreshToken.builder()
                 .token(hashedToken)
-                .expiration(Instant.now().plus(REFRESH_TOKEN_EXPIRATION, ChronoUnit.MINUTES))
+                .expiration(Instant.now().plus(jwt.refreshExpireMinutes(), ChronoUnit.MINUTES))
                 .user(user)
                 .revoked(false)
                 .build();

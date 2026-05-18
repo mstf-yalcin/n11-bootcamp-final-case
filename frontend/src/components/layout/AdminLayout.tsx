@@ -13,8 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/Logo";
-import { useLogout } from "@/features/auth/queries";
-import { useAuthStore } from "@/store/authStore";
+import { useCurrentUser, useLogout } from "@/features/auth/queries";
 
 const NAV = [
   { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -28,7 +27,7 @@ const NAV = [
 ];
 
 export function AdminLayout() {
-  const user = useAuthStore((s) => s.user);
+  const { data: user } = useCurrentUser();
   const logout = useLogout();
 
   return (

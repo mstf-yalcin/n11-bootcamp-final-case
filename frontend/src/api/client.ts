@@ -12,6 +12,7 @@ export const api = axios.create({
   baseURL,
   headers: { "Content-Type": "application/json" },
   timeout: 15000,
+  withCredentials: true,
 });
 
 const NO_AUTH_PATHS = [
@@ -35,16 +36,13 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 let refreshPromise: Promise<AuthTokens> | null = null;
 
 async function refreshAccessToken(): Promise<AuthTokens> {
-  const refreshToken = useAuthStore.getState().refreshToken;
-  if (!refreshToken) {
-    throw new Error("No refresh token");
-  }
   const { data } = await axios.post<ApiResponse<AuthTokens>>(
     `${baseURL}${API_BASE}/auth/refresh`,
-    { refreshToken }
+    {},
+    { withCredentials: true }
   );
   if (!data.success || !data.data) throw new Error("Refresh failed");
-  useAuthStore.getState().setTokens(data.data);
+  useAuthStore.getState().setAccessToken(data.data.accessToken);
   return data.data;
 }
 

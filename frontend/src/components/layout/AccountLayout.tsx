@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { CreditCard, MapPin, Package, User } from "lucide-react";
-import { useAuthStore } from "@/store/authStore";
+import { useCurrentUser } from "@/features/auth/queries";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -11,7 +11,7 @@ const NAV = [
 ];
 
 export function AccountLayout() {
-  const user = useAuthStore((s) => s.user);
+  const { data: user } = useCurrentUser();
   return (
     <div className="container py-6">
       <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
