@@ -1,0 +1,75 @@
+.env
+**/.env
+.env.local
+**/.env.local
+.env.*.local
+**/.env.*.local
+
+# Whitelist templates — these SHOULD be committed
+!.env.example
+!**/.env.example
+
+# ---- Java / Maven --------------------------------------------------
+**/target/
+**/.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+*.war
+*.ear
+*.versionsBackup
+hs_err_pid*.log
+replay_pid*.log
+
+# ---- Node / Frontend -----------------------------------------------
+**/node_modules/
+**/dist/
+**/build/
+**/.next/
+**/.nuxt/
+**/.cache/
+**/coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnp.*
+.yarn/cache
+.yarn/install-state.gz
+
+# ---- TypeScript / Build artifacts ---------------------------------
+*.tsbuildinfo
+.eslintcache
+
+# ---- Test reports --------------------------------------------------
+**/surefire-reports/
+**/failsafe-reports/
+**/jacoco.exec
+**/test-results/
+
+# ---- IDE / Editors -------------------------------------------------
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.factorypath
+.metadata/
+*.swp
+*.swo
+*~
+
+# ---- OS files ------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Logs / temp ---------------------------------------------------
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+
