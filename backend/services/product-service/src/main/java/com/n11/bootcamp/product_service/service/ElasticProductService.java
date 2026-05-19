@@ -7,6 +7,7 @@ import co.elastic.clients.elasticsearch.core.search.FieldSuggester;
 import co.elastic.clients.elasticsearch.core.search.Suggester;
 import com.n11.bootcamp.product_service.dto.request.CreateProductRequest;
 import com.n11.bootcamp.product_service.dto.request.UpdateProductRequest;
+import com.n11.bootcamp.product_service.dto.response.ProductMinimalResponse;
 import com.n11.bootcamp.product_service.dto.response.ProductResponse;
 import com.n11.bootcamp.product_service.dto.response.SearchSuggestionResponse;
 import com.n11.bootcamp.product_service.entity.Product;
@@ -24,14 +25,15 @@ import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.suggest.response.Suggest;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Elasticsearch-backed {@link ProductService}. Active when
@@ -49,8 +51,10 @@ import java.util.UUID;
 @Service
 @Primary
 @ConditionalOnProperty(name = "app.product.search.engine", havingValue = "elastic")
-@Transactional(readOnly = true)
 public class ElasticProductService implements ProductService {
+
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
 
     private final JpaProductService delegate;
     private final ElasticsearchOperations elasticsearchOperations;
@@ -104,9 +108,8 @@ public class ElasticProductService implements ProductService {
             return new PageImpl<>(List.of(), pageable, hits.getTotalHits());
         }
 
-        Map<UUID, Product> byId = delegate.getProductRepository()
-                .findAllByIdInAndIsActiveTrue(ids).stream()
-                .collect(HashMap::new, (m, p) -> m.put(p.getId(), p), HashMap::putAll);
+        Map<UUID, Product> byId = delegate.getProductRepository().findByIdInWithTags(ids, includeInactive).stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
 
         List<ProductResponse> ordered = ids.stream()
                 .map(byId::get)
@@ -122,22 +125,27 @@ public class ElasticProductService implements ProductService {
                                  BigDecimal minRating, String search, boolean includeInactive) {
         return Query.of(q -> q.bool(b -> {
             if (search != null && !search.isBlank()) {
-                b.must(m -> m.bool(inner -> inner
-                        .should(s -> s.multiMatch(mm -> mm
-                                .fields("name^3", "description")
-                                .query(search)
-                                .fuzziness("AUTO")))
-                        .should(s -> s.multiMatch(mm -> mm
-                                .query(search)
-                                .type(TextQueryType.BoolPrefix)
-                                .fields("name.autocomplete^3",
-                                        "name.autocomplete._2gram",
-                                        "name.autocomplete._3gram")))
-                        .should(s -> s.matchPhrasePrefix(mp -> mp
-                                .field("description")
-                                .query(search)))
-                        .minimumShouldMatch("1")
-                ));
+                String trimmed = search.trim();
+                if (UUID_PATTERN.matcher(trimmed).matches()) {
+                    b.must(m -> m.ids(i -> i.values(trimmed.toLowerCase())));
+                } else {
+                    b.must(m -> m.bool(inner -> inner
+                            .should(s -> s.multiMatch(mm -> mm
+                                    .fields("name^3", "description")
+                                    .query(search)
+                                    .fuzziness("AUTO")))
+                            .should(s -> s.multiMatch(mm -> mm
+                                    .query(search)
+                                    .type(TextQueryType.BoolPrefix)
+                                    .fields("name.autocomplete^3",
+                                            "name.autocomplete._2gram",
+                                            "name.autocomplete._3gram")))
+                            .should(s -> s.matchPhrasePrefix(mp -> mp
+                                    .field("description")
+                                    .query(search)))
+                            .minimumShouldMatch("1")
+                    ));
+                }
             } else {
                 b.must(m -> m.matchAll(ma -> ma));
             }
@@ -179,7 +187,7 @@ public class ElasticProductService implements ProductService {
     }
 
     @Override
-    public List<ProductResponse> getProductsByIds(List<UUID> ids) {
+    public List<ProductMinimalResponse> getProductsByIds(List<UUID> ids) {
         return delegate.getProductsByIds(ids);
     }
 

@@ -2,6 +2,7 @@ package com.n11.bootcamp.product_service.service;
 
 import com.n11.bootcamp.product_service.dto.request.CreateProductRequest;
 import com.n11.bootcamp.product_service.dto.request.UpdateProductRequest;
+import com.n11.bootcamp.product_service.dto.response.ProductMinimalResponse;
 import com.n11.bootcamp.product_service.dto.response.ProductResponse;
 import com.n11.bootcamp.product_service.dto.response.SearchSuggestionResponse;
 import org.springframework.data.domain.Page;
@@ -34,7 +35,7 @@ public interface ProductService {
 
     ProductResponse getProductBySlug(String slug);
 
-    List<ProductResponse> getProductsByIds(List<UUID> ids);
+    List<ProductMinimalResponse> getProductsByIds(List<UUID> ids);
 
     List<UUID> getExistingProductIds(List<UUID> ids);
 

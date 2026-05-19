@@ -1,5 +1,6 @@
 package com.n11.bootcamp.product_service.repository;
 
+import com.n11.bootcamp.product_service.dto.response.ProductMinimalResponse;
 import com.n11.bootcamp.product_service.entity.Product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,14 +18,25 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     Optional<Product> findByIdAndIsActiveTrue(UUID id);
 
-    Optional<Product> findBySlugAndIsActiveTrue(String slug);
+    @Query("""
+            SELECT DISTINCT p FROM Product p
+            LEFT JOIN FETCH p.tags
+            WHERE p.slug = :slug AND p.isActive = true
+            """)
+    Optional<Product> findBySlugAndIsActiveTrue(@Param("slug") String slug);
 
     boolean existsBySlug(String slug);
 
-    List<Product> findAllByIdInAndIsActiveTrue(List<UUID> ids);
-
     @Query("SELECT p.id FROM Product p WHERE p.id IN :ids AND p.isActive = true")
     List<UUID> findExistingIdsByIdIn(@Param("ids") List<UUID> ids);
+
+    @Query("""
+            SELECT new com.n11.bootcamp.product_service.dto.response.ProductMinimalResponse(
+                p.id, p.slug, p.name, p.price, p.currency, p.imageUrl, null, null)
+            FROM Product p
+            WHERE p.id IN :ids AND p.isActive = true
+            """)
+    List<ProductMinimalResponse> findMinimalByIds(@Param("ids") List<UUID> ids);
 
     long countByCategoryIdAndIsActiveTrue(UUID categoryId);
 
@@ -33,28 +45,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     int bulkMoveActiveProductsToCategory(@Param("sourceId") UUID sourceId, @Param("targetId") UUID targetId);
 
     @Query("""
-            SELECT p FROM Product p
-            WHERE p.isActive = true
-              AND (:categoryId IS NULL OR p.category.id = :categoryId)
-              AND (:minPrice IS NULL OR p.price >= :minPrice)
-              AND (:maxPrice IS NULL OR p.price <= :maxPrice)
-              AND (:minRating IS NULL OR p.ratingAverage >= :minRating)
-              AND (:search IS NULL
-                   OR CAST(p.id AS string) LIKE :search
-                   OR LOWER(p.name) LIKE :search
-                   OR LOWER(p.description) LIKE :search)
-            """)
-    Page<Product> findWithFilters(
-            @Param("categoryId") UUID categoryId,
-            @Param("minPrice") BigDecimal minPrice,
-            @Param("maxPrice") BigDecimal maxPrice,
-            @Param("minRating") BigDecimal minRating,
-            @Param("search") String search,
-            Pageable pageable
-    );
-
-    @Query("""
-            SELECT p FROM Product p
+            SELECT p.id FROM Product p
             WHERE (:includeInactive = true OR p.isActive = true)
               AND (:categoryId IS NULL OR p.category.id = :categoryId)
               AND (:minPrice IS NULL OR p.price >= :minPrice)
@@ -65,7 +56,7 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
                    OR LOWER(p.name) LIKE :search
                    OR LOWER(p.description) LIKE :search)
             """)
-    Page<Product> findAdminWithFilters(
+    Page<UUID> findIdsWithFilters(
             @Param("categoryId") UUID categoryId,
             @Param("minPrice") BigDecimal minPrice,
             @Param("maxPrice") BigDecimal maxPrice,
@@ -73,5 +64,16 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
             @Param("search") String search,
             @Param("includeInactive") boolean includeInactive,
             Pageable pageable
+    );
+
+    @Query("""
+            SELECT DISTINCT p FROM Product p
+            LEFT JOIN FETCH p.tags
+            WHERE p.id IN :ids
+              AND (:includeInactive = true OR p.isActive = true)
+            """)
+    List<Product> findByIdInWithTags(
+            @Param("ids") List<UUID> ids,
+            @Param("includeInactive") boolean includeInactive
     );
 }

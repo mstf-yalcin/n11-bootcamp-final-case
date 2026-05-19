@@ -75,7 +75,7 @@ public class Product extends BaseEntity {
     @Builder.Default
     private Set<Tag> tags = new HashSet<>();
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 }

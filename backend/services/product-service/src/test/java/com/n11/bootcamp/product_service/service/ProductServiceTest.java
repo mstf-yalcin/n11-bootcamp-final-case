@@ -3,6 +3,7 @@ package com.n11.bootcamp.product_service.service;
 import com.n11.bootcamp.product_service.client.StockClient;
 import com.n11.bootcamp.product_service.dto.request.CreateProductRequest;
 import com.n11.bootcamp.product_service.dto.request.UpdateProductRequest;
+import com.n11.bootcamp.product_service.dto.response.ProductMinimalResponse;
 import com.n11.bootcamp.product_service.dto.response.ProductResponse;
 import com.n11.bootcamp.product_service.entity.Category;
 import com.n11.bootcamp.product_service.entity.Product;
@@ -44,7 +45,7 @@ class ProductServiceTest {
     private StockAvailabilityCache stockAvailabilityCache;
 
     @InjectMocks
-    private ProductService productService;
+    private JpaProductService productService;
 
     private UUID productId;
     private UUID categoryId;
@@ -115,14 +116,17 @@ class ProductServiceTest {
     }
 
     @Test
-    void testGetProductsByIds_when_idsProvided_returnsList() {
-        when(productRepository.findAllByIdInAndIsActiveTrue(List.of(productId))).thenReturn(List.of(product));
-        when(productMapper.toResponse(product)).thenReturn(productResponse);
+    void testGetProductsByIds_when_idsProvided_returnsMinimalList() {
+        ProductMinimalResponse minimal = new ProductMinimalResponse(
+                productId, "headphones", "Headphones", BigDecimal.valueOf(999.99), "TRY",
+                null, null, null
+        );
+        when(productRepository.findMinimalByIds(List.of(productId))).thenReturn(List.of(minimal));
 
-        List<ProductResponse> result = productService.getProductsByIds(List.of(productId));
+        List<ProductMinimalResponse> result = productService.getProductsByIds(List.of(productId));
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).slug()).isEqualTo("headphones");
+        assertThat(result.get(0).name()).isEqualTo("Headphones");
     }
 
     @Test

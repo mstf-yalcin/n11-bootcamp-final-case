@@ -11,11 +11,11 @@ import com.n11.bootcamp.product_service.exception.TargetCategoryRequiredExceptio
 import com.n11.bootcamp.product_service.mapper.CategoryMapper;
 import com.n11.bootcamp.product_service.repository.CategoryRepository;
 import com.n11.bootcamp.product_service.repository.ProductRepository;
+import com.n11.bootcamp.product_service.util.SlugUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.text.Normalizer;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -115,28 +115,11 @@ public class CategoryService {
     }
 
     private String generateUniqueSlug(String name) {
-        String slug = slugifyTurkish(name);
+        String slug = SlugUtil.slugifyTurkish(name);
         if (categoryRepository.existsBySlug(slug)) {
             log.warn("Category slug already exists: name={}, slug={}", name, slug);
             throw new SlugAlreadyExistsException(slug);
         }
         return slug;
-    }
-
-    /** Türkçe ı/ğ/ş/ç/ö/ü → ASCII + slug-safe filter. */
-    private String slugifyTurkish(String input) {
-        String tr = input
-                .replace('ı', 'i').replace('İ', 'I')
-                .replace('ğ', 'g').replace('Ğ', 'G')
-                .replace('ş', 's').replace('Ş', 'S')
-                .replace('ö', 'o').replace('Ö', 'O')
-                .replace('ü', 'u').replace('Ü', 'U')
-                .replace('ç', 'c').replace('Ç', 'C');
-        return Normalizer.normalize(tr, Normalizer.Form.NFD)
-                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
-                .toLowerCase()
-                .replaceAll("[^a-z0-9\\s]", "")
-                .trim()
-                .replaceAll("\\s+", "-");
     }
 }

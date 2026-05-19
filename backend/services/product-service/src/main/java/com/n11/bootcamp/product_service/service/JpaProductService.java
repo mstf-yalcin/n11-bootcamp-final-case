@@ -5,6 +5,7 @@ import com.n11.bootcamp.product_service.client.StockClient;
 import com.n11.bootcamp.product_service.client.dto.StockAvailabilityClientResponse;
 import com.n11.bootcamp.product_service.dto.request.CreateProductRequest;
 import com.n11.bootcamp.product_service.dto.request.UpdateProductRequest;
+import com.n11.bootcamp.product_service.dto.response.ProductMinimalResponse;
 import com.n11.bootcamp.product_service.dto.response.ProductResponse;
 import com.n11.bootcamp.product_service.dto.response.SearchSuggestionResponse;
 import com.n11.bootcamp.product_service.entity.Category;
@@ -17,21 +18,25 @@ import com.n11.bootcamp.product_service.mapper.ProductMapper;
 import com.n11.bootcamp.product_service.repository.CategoryRepository;
 import com.n11.bootcamp.product_service.repository.ProductRepository;
 import com.n11.bootcamp.product_service.repository.TagRepository;
+import com.n11.bootcamp.product_service.util.SlugUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -67,10 +72,15 @@ public class JpaProductService implements ProductService {
         String searchPattern = (search != null && !search.isBlank())
                 ? "%" + search.toLowerCase() + "%"
                 : null;
-        Page<ProductResponse> page = productRepository
-                .findWithFilters(categoryId, minPrice, maxPrice, minRating, searchPattern, pageable)
-                .map(productMapper::toResponse);
 
+        Page<UUID> idsPage = productRepository.findIdsWithFilters(
+                categoryId, minPrice, maxPrice, minRating, searchPattern, false, pageable);
+
+        if (idsPage.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, idsPage.getTotalElements());
+        }
+
+        Page<ProductResponse> page = fetchAndOrderByIds(idsPage, false);
         return enrichPageWithStock(page);
     }
 
@@ -83,11 +93,30 @@ public class JpaProductService implements ProductService {
         String searchPattern = (search != null && !search.isBlank())
                 ? "%" + search.toLowerCase() + "%"
                 : null;
-        Page<ProductResponse> page = productRepository
-                .findAdminWithFilters(categoryId, minPrice, maxPrice, minRating, searchPattern, includeInactive, pageable)
-                .map(productMapper::toResponse);
 
+        Page<UUID> idsPage = productRepository.findIdsWithFilters(
+                categoryId, minPrice, maxPrice, minRating, searchPattern, includeInactive, pageable);
+
+        if (idsPage.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, idsPage.getTotalElements());
+        }
+
+        Page<ProductResponse> page = fetchAndOrderByIds(idsPage, includeInactive);
         return enrichPageWithStock(page);
+    }
+
+    private Page<ProductResponse> fetchAndOrderByIds(Page<UUID> idsPage, boolean includeInactive) {
+        List<UUID> ids = idsPage.getContent();
+        Map<UUID, Product> byId = productRepository.findByIdInWithTags(ids, includeInactive).stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
+
+        List<ProductResponse> ordered = ids.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .map(productMapper::toResponse)
+                .toList();
+
+        return new PageImpl<>(ordered, idsPage.getPageable(), idsPage.getTotalElements());
     }
 
     @Override
@@ -123,13 +152,10 @@ public class JpaProductService implements ProductService {
     }
 
     @Override
-    public List<ProductResponse> getProductsByIds(List<UUID> ids) {
-        log.info("Batch fetching products: ids={}", ids);
-        List<ProductResponse> responses = productRepository.findAllByIdInAndIsActiveTrue(ids)
-                .stream()
-                .map(productMapper::toResponse)
-                .toList();
-        return enrichWithStock(responses);
+    public List<ProductMinimalResponse> getProductsByIds(List<UUID> ids) {
+        log.info("Batch fetching minimal products: ids={}", ids);
+        List<ProductMinimalResponse> projected = productRepository.findMinimalByIds(ids);
+        return enrichMinimalWithStock(projected);
     }
 
     @Override
@@ -217,11 +243,11 @@ public class JpaProductService implements ProductService {
         return response.withStock(avail.status(), avail.available());
     }
 
-    List<ProductResponse> enrichWithStock(List<ProductResponse> responses) {
+    List<ProductMinimalResponse> enrichMinimalWithStock(List<ProductMinimalResponse> responses) {
         if (responses.isEmpty()) {
             return responses;
         }
-        List<UUID> ids = responses.stream().map(ProductResponse::id).toList();
+        List<UUID> ids = responses.stream().map(ProductMinimalResponse::id).toList();
         Map<UUID, StockAvailabilityClientResponse> map = fetchAvailability(ids);
         return responses.stream()
                 .map(r -> {
@@ -267,7 +293,7 @@ public class JpaProductService implements ProductService {
     }
 
     private String generateUniqueSlug(String name) {
-        String baseSlug = slugifyTurkish(name);
+        String baseSlug = SlugUtil.slugifyTurkish(name);
 
         for (int i = 0; i < 5; i++) {
             String slug = baseSlug + "-" + ThreadLocalRandom.current().nextInt(10_000_000, 100_000_000);
@@ -276,22 +302,5 @@ public class JpaProductService implements ProductService {
             }
         }
         throw new SlugGenerationException(name);
-    }
-
-    /** Türkçe ı/ğ/ş/ç/ö/ü + Unicode NFD normalize + slug-safe filter. */
-    private String slugifyTurkish(String input) {
-        String tr = input
-                .replace('ı', 'i').replace('İ', 'I')
-                .replace('ğ', 'g').replace('Ğ', 'G')
-                .replace('ş', 's').replace('Ş', 'S')
-                .replace('ö', 'o').replace('Ö', 'O')
-                .replace('ü', 'u').replace('Ü', 'U')
-                .replace('ç', 'c').replace('Ç', 'C');
-        return Normalizer.normalize(tr, Normalizer.Form.NFD)
-                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
-                .toLowerCase()
-                .replaceAll("[^a-z0-9\\s]", "")
-                .trim()
-                .replaceAll("\\s+", "-");
     }
 }
