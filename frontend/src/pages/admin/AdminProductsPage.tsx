@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable, type Column, type SortState } from "@/components/DataTable";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { AdminProductFormDialog } from "./AdminProductFormDialog";
-import { formatTRY } from "@/lib/utils";
+import { formatDate, formatTRY } from "@/lib/utils";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import type { Product } from "@/types/api";
 
@@ -62,11 +62,24 @@ export default function AdminProductsPage() {
       }),
   });
 
+  const patchProductInCache = (id: string, patch: Partial<Product>) => {
+    queryClient.setQueriesData(
+      { queryKey: ["admin", "products"] },
+      (old: { items: Product[]; page: unknown } | undefined) => {
+        if (!old?.items) return old;
+        return {
+          ...old,
+          items: old.items.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+        };
+      }
+    );
+  };
+
   const removeMutation = useMutation({
     mutationFn: (id: string) => adminProductApi.remove(id),
-    onSuccess: () => {
-      toast.success("Ürün silindi");
-      queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+    onSuccess: (_, id) => {
+      toast.success("Ürün pasifleştirildi");
+      patchProductInCache(id, { isActive: false });
       queryClient.invalidateQueries({ queryKey: ["products"] });
     },
     onError: (err) => notifyApiError(err, "Silme başarısız"),
@@ -74,9 +87,9 @@ export default function AdminProductsPage() {
 
   const restoreMutation = useMutation({
     mutationFn: (id: string) => adminProductApi.restore(id),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       toast.success("Ürün geri yüklendi");
-      queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+      patchProductInCache(id, { isActive: true });
       queryClient.invalidateQueries({ queryKey: ["products"] });
     },
     onError: (err) => notifyApiError(err, "Geri yükleme başarısız"),
@@ -189,6 +202,26 @@ export default function AdminProductsPage() {
         ),
     },
     {
+      key: "createdAt",
+      header: "Oluşturma",
+      sortKey: "createdAt",
+      cell: (p) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDate(p.createdAt)}
+        </span>
+      ),
+    },
+    {
+      key: "updatedAt",
+      header: "Güncelleme",
+      sortKey: "updatedAt",
+      cell: (p) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDate(p.updatedAt)}
+        </span>
+      ),
+    },
+    {
       key: "actions",
       header: "",
       width: "140px",
@@ -232,15 +265,15 @@ export default function AdminProductsPage() {
             <button
               onClick={async () => {
                 const ok = await confirm({
-                  title: "Ürünü sil",
-                  description: `"${p.name}" ürününü silmek istediğine emin misin? Soft delete uygulanır.`,
+                  title: "Ürünü pasifleştir",
+                  description: `"${p.name}" ürünü pasifleştirilecek. Daha sonra geri yükleyebilirsin.`,
                   destructive: true,
-                  confirmLabel: "Sil",
+                  confirmLabel: "Pasifleştir",
                 });
                 if (ok) removeMutation.mutate(p.id);
               }}
               className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-              aria-label="Sil"
+              aria-label="Pasifleştir"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -303,6 +336,7 @@ export default function AdminProductsPage() {
         columns={columns}
         rows={productsQuery.data?.items}
         rowKey={(p) => p.id}
+        rowClassName={(p) => (p.isActive === false ? "opacity-60" : undefined)}
         isLoading={productsQuery.isLoading}
         isError={productsQuery.isError}
         emptyMessage="Hiç ürün bulunamadı."

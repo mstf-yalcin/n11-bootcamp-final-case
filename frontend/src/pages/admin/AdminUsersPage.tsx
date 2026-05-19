@@ -183,7 +183,7 @@ export default function AdminUsersPage() {
     },
     {
       key: "createdAt",
-      header: "Kayıt",
+      header: "Oluşturma",
       sortKey: "createdAt",
       cell: (u) => (
         <span className="text-xs text-muted-foreground">

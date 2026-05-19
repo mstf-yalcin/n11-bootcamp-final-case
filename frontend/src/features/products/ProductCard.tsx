@@ -69,11 +69,13 @@ export function ProductCard({ product }: { product: Product }) {
             )}
           </div>
         )}
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-          <span>{Number(product.ratingAverage).toFixed(1)}</span>
-          <span>({product.ratingCount})</span>
-        </div>
+        {product.ratingAverage != null && product.ratingCount != null && (
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+            <span>{Number(product.ratingAverage).toFixed(1)}</span>
+            <span>({product.ratingCount})</span>
+          </div>
+        )}
         <div className="mt-auto text-lg font-bold text-foreground">
           {formatTRY(product.price, product.currency)}
         </div>

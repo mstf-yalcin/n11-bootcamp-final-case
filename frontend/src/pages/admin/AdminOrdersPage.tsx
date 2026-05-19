@@ -175,7 +175,16 @@ export default function AdminOrdersPage() {
       key: "id",
       header: "Sipariş No",
       cell: (o) => (
-        <code className="text-xs font-mono">
+        <code
+          className="cursor-pointer text-xs font-mono hover:text-foreground"
+          title="ID'yi kopyalamak için tıkla"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            navigator.clipboard.writeText(o.id);
+            toast.success("ID kopyalandı");
+          }}
+        >
           {o.id}
         </code>
       ),
@@ -197,16 +206,6 @@ export default function AdminOrdersPage() {
             </code>
           )}
         </div>
-      ),
-    },
-    {
-      key: "createdAt",
-      header: "Tarih",
-      sortKey: "createdAt",
-      cell: (o) => (
-        <span className="text-xs text-muted-foreground">
-          {formatDate(o.createdAt)}
-        </span>
       ),
     },
     {
@@ -242,6 +241,26 @@ export default function AdminOrdersPage() {
       sortKey: "status",
       cell: (o) => (
         <OrderStatusBadge status={o.status} cancelReason={o.cancelReason} viewer="admin" />
+      ),
+    },
+    {
+      key: "createdAt",
+      header: "Oluşturma",
+      sortKey: "createdAt",
+      cell: (o) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDate(o.createdAt)}
+        </span>
+      ),
+    },
+    {
+      key: "updatedAt",
+      header: "Güncelleme",
+      sortKey: "updatedAt",
+      cell: (o) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDate(o.updatedAt)}
+        </span>
       ),
     },
     {
@@ -366,7 +385,16 @@ export default function AdminOrdersPage() {
                               {it.productName}
                             </span>
                           )}
-                          <code className="block text-[10px] text-muted-foreground">
+                          <code
+                            className="block cursor-pointer text-[10px] text-muted-foreground hover:text-foreground"
+                            title="Ürün ID'sini kopyalamak için tıkla"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              navigator.clipboard.writeText(it.productId);
+                              toast.success("Ürün ID kopyalandı");
+                            }}
+                          >
                             {it.productId}
                           </code>
                         </div>

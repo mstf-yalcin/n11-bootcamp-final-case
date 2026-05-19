@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import { Search } from "lucide-react";
 import { adminPaymentApi } from "@/api/endpoints";
 import { API_BASE } from "@/api/client";
@@ -105,7 +106,16 @@ export default function AdminPaymentsPage() {
       key: "orderId",
       header: "Sipariş No",
       cell: (p) => (
-        <code className="text-xs font-mono">
+        <code
+          className="cursor-pointer text-xs font-mono hover:text-foreground"
+          title="Sipariş ID'sini kopyalamak için tıkla"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            navigator.clipboard.writeText(p.orderId);
+            toast.success("Sipariş ID kopyalandı");
+          }}
+        >
           {p.orderId.slice(0, 8).toUpperCase()}
         </code>
       ),
@@ -134,11 +144,21 @@ export default function AdminPaymentsPage() {
     },
     {
       key: "createdAt",
-      header: "Tarih",
+      header: "Oluşturma",
       sortKey: "createdAt",
       cell: (p) => (
         <span className="text-xs text-muted-foreground">
           {formatDate(p.createdAt)}
+        </span>
+      ),
+    },
+    {
+      key: "updatedAt",
+      header: "Güncelleme",
+      sortKey: "updatedAt",
+      cell: (p) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDate(p.updatedAt)}
         </span>
       ),
     },

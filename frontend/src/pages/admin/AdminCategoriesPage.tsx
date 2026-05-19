@@ -45,7 +45,7 @@ export default function AdminCategoriesPage() {
     mutationFn: (vars: { id: string; targetCategoryId?: string }) =>
       adminCategoryApi.remove(vars.id, vars.targetCategoryId),
     onSuccess: () => {
-      toast.success("Kategori silindi");
+      toast.success("Kategori pasifleştirildi");
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       closeDelete();
     },
@@ -93,9 +93,20 @@ export default function AdminCategoriesPage() {
     {
       key: "createdAt",
       header: "Oluşturma",
+      sortKey: "createdAt",
       cell: (c) => (
         <span className="text-xs text-muted-foreground">
           {formatDate(c.createdAt)}
+        </span>
+      ),
+    },
+    {
+      key: "updatedAt",
+      header: "Güncelleme",
+      sortKey: "updatedAt",
+      cell: (c) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDate(c.updatedAt)}
         </span>
       ),
     },
@@ -116,7 +127,7 @@ export default function AdminCategoriesPage() {
           <button
             onClick={() => setDeletingCategory(c)}
             className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            aria-label="Sil"
+            aria-label="Pasifleştir"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -212,15 +223,15 @@ function DeleteCategoryDialog({
         <DialogHeader>
           <DialogTitle>
             {needsTarget
-              ? `"${category?.name}" — ürünleri taşı ve sil`
-              : `"${category?.name}" kategorisini sil`}
+              ? `"${category?.name}" — ürünleri taşı ve pasifleştir`
+              : `"${category?.name}" kategorisini pasifleştir`}
           </DialogTitle>
         </DialogHeader>
 
         {needsTarget ? (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Bu kategoride aktif ürünler var. Silmeden önce ürünlerin
+              Bu kategoride aktif ürünler var. Pasifleştirmeden önce ürünlerin
               taşınacağı kategoriyi seç. Tüm aktif ürünler tek seferde hedefe
               taşınır.
             </p>
@@ -244,8 +255,7 @@ function DeleteCategoryDialog({
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Bu kategori soft delete edilecek. Altında aktif ürün varsa hedef
-            kategori seçimi istenecek.
+            Bu kategori pasifleştirilecek. Daha sonra geri yükleyebilirsin.
           </p>
         )}
 
@@ -259,7 +269,7 @@ function DeleteCategoryDialog({
             disabled={!canConfirm || isPending}
             onClick={onConfirm}
           >
-            {needsTarget ? "Taşı ve Sil" : "Sil"}
+            {needsTarget ? "Taşı ve Pasifleştir" : "Pasifleştir"}
           </Button>
         </div>
       </DialogContent>

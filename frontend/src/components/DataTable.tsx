@@ -17,6 +17,7 @@ type Props<T> = {
   columns: Column<T>[];
   rows: T[] | undefined;
   rowKey: (row: T) => string;
+  rowClassName?: (row: T) => string | undefined;
   isLoading?: boolean;
   isError?: boolean;
   errorMessage?: ReactNode;
@@ -33,6 +34,7 @@ export function DataTable<T>({
   columns,
   rows,
   rowKey,
+  rowClassName,
   isLoading,
   isError,
   errorMessage,
@@ -138,7 +140,8 @@ export function DataTable<T>({
                       className={cn(
                         "border-b last:border-b-0",
                         onRowClick && "cursor-pointer hover:bg-accent/40",
-                        isExpanded && "bg-accent/30"
+                        isExpanded && "bg-accent/30",
+                        rowClassName?.(row)
                       )}
                     >
                       {columns.map((col) => (
