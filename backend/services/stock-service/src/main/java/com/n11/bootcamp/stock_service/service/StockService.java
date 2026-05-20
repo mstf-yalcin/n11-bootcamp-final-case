@@ -238,19 +238,27 @@ public class StockService {
     @Transactional
     public void releaseReservations(UUID orderId, String correlationId) {
         log.info("Releasing reservations for orderId={}, correlationId={}", orderId, correlationId);
-        List<StockReservation> pending = reservationRepository
-                .findAllByOrderIdAndStatus(orderId, ReservationStatus.PENDING);
+        List<StockReservation> reservations = reservationRepository.findAllByOrderId(orderId);
 
-        for (StockReservation reservation : pending) {
-            int updated = stockRepository.decrementReserved(reservation.getProductId(), reservation.getQuantity());
-            if (updated == 0) {
-                log.warn("Could not decrement reserved for productId={}, qty={}, correlationId={} — already zero or product inactive",
-                        reservation.getProductId(), reservation.getQuantity(), correlationId);
+        int released = 0;
+        for (StockReservation r : reservations) {
+            int updated;
+            if (r.getStatus() == ReservationStatus.PENDING) {
+                updated = stockRepository.decrementReserved(r.getProductId(), r.getQuantity());
+            } else if (r.getStatus() == ReservationStatus.CONFIRMED) {
+                updated = stockRepository.incrementQuantity(r.getProductId(), r.getQuantity());
+            } else {
+                continue;
             }
-            reservation.setStatus(ReservationStatus.RELEASED);
+            if (updated == 0) {
+                log.warn("Stock update returned 0 rows for productId={}, qty={}, prevStatus={}, correlationId={}",
+                        r.getProductId(), r.getQuantity(), r.getStatus(), correlationId);
+            }
+            r.setStatus(ReservationStatus.RELEASED);
+            released+=1;
         }
-        reservationRepository.saveAll(pending);
-        log.info("Released {} reservations for orderId={}, correlationId={}", pending.size(), orderId, correlationId);
+        reservationRepository.saveAll(reservations);
+        log.info("Released {} reservations for orderId={}, correlationId={}", released, orderId, correlationId);
     }
 
     @Transactional
