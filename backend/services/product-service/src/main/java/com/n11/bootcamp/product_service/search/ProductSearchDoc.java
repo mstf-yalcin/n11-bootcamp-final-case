@@ -6,13 +6,16 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.elasticsearch.annotations.DateFormat;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
 import org.springframework.data.elasticsearch.annotations.InnerField;
 import org.springframework.data.elasticsearch.annotations.MultiField;
+import org.springframework.data.elasticsearch.annotations.Setting;
 
 @Document(indexName = "products")
+@Setting(settingPath = "/elasticsearch/products-settings.json")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -28,7 +31,10 @@ public class ProductSearchDoc {
 
     @MultiField(
             mainField = @Field(type = FieldType.Text, analyzer = "turkish"),
-            otherFields = @InnerField(suffix = "autocomplete", type = FieldType.Search_As_You_Type)
+            otherFields = {
+                    @InnerField(suffix = "autocomplete", type = FieldType.Search_As_You_Type),
+                    @InnerField(suffix = "keyword", type = FieldType.Keyword, normalizer = "lowercase_normalizer")
+            }
     )
     private String name;
 
@@ -55,4 +61,11 @@ public class ProductSearchDoc {
 
     @Field(type = FieldType.Boolean)
     private Boolean isActive;
+
+    @Field(type = FieldType.Date, format = { DateFormat.strict_date_optional_time_nanos, DateFormat.epoch_millis })
+    private java.time.Instant createdAt;
+
+    @Field(type = FieldType.Date, format = { DateFormat.strict_date_optional_time_nanos, DateFormat.epoch_millis })
+    private java.time.Instant updatedAt;
+
 }

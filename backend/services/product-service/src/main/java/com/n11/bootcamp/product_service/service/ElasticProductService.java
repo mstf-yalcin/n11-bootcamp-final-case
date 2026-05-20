@@ -1,6 +1,7 @@
 package com.n11.bootcamp.product_service.service;
 
 import co.elastic.clients.elasticsearch._types.SortOrder;
+import co.elastic.clients.elasticsearch._types.query_dsl.Operator;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
 import co.elastic.clients.elasticsearch.core.search.FieldSuggester;
@@ -17,6 +18,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.elasticsearch.client.elc.NativeQuery;
@@ -87,14 +89,21 @@ public class ElasticProductService implements ProductService {
                                                   Pageable pageable) {
         Query esQuery = buildBoolQuery(categoryId, minPrice, maxPrice, minRating, search, includeInactive);
 
+        Pageable paginationOnly = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
         NativeQueryBuilder builder = NativeQuery.builder()
                 .withQuery(esQuery)
-                .withPageable(pageable)
+                .withPageable(paginationOnly)
                 .withTrackTotalHits(true);
 
         for (Sort.Order order : pageable.getSort()) {
             SortOrder so = order.isAscending() ? SortOrder.Asc : SortOrder.Desc;
-            builder.withSort(s -> s.field(f -> f.field(order.getProperty()).order(so)));
+            String esField = "name".equals(order.getProperty()) ? "name.keyword" : order.getProperty();
+            builder.withSort(s -> s.field(f -> f.field(esField).order(so)));
+        }
+
+        boolean hasSearch = search != null && !search.isBlank();
+        if (hasSearch) {
+            builder.withSort(s -> s.score(sc -> sc.order(SortOrder.Desc)));
         }
 
         SearchHits<ProductSearchDoc> hits = elasticsearchOperations.search(
@@ -130,19 +139,32 @@ public class ElasticProductService implements ProductService {
                     b.must(m -> m.ids(i -> i.values(trimmed.toLowerCase())));
                 } else {
                     b.must(m -> m.bool(inner -> inner
-                            .should(s -> s.multiMatch(mm -> mm
-                                    .fields("name^3", "description")
+                            .should(s -> s.term(t -> t
+                                    .field("name.keyword")
+                                    .value(trimmed)
+                                    .boost(100.0f)))
+                            .should(s -> s.matchPhrase(mp -> mp
+                                    .field("name")
                                     .query(search)
-                                    .fuzziness("AUTO")))
+                                    .boost(50.0f)))
+                            .should(s -> s.multiMatch(mm -> mm
+                                    .fields("name")
+                                    .query(search)
+                                    .fuzziness("AUTO")
+                                    .prefixLength(2)
+                                    .maxExpansions(10)
+                                    .operator(Operator.And)
+                                    .boost(10.0f)))
                             .should(s -> s.multiMatch(mm -> mm
                                     .query(search)
                                     .type(TextQueryType.BoolPrefix)
-                                    .fields("name.autocomplete^3",
+                                    .fields("name.autocomplete",
                                             "name.autocomplete._2gram",
                                             "name.autocomplete._3gram")))
-                            .should(s -> s.matchPhrasePrefix(mp -> mp
+                            .should(s -> s.match(mt -> mt
                                     .field("description")
-                                    .query(search)))
+                                    .query(search)
+                                    .boost(0.5f)))
                             .minimumShouldMatch("1")
                     ));
                 }

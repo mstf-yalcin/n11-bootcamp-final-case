@@ -74,16 +74,23 @@
                           │  PostgreSQL │  WAL ──►│   Debezium     │
                           │  wal_logical│         │   Connect      │
                           └─────────────┘         └────────┬───────┘
-                                                           │ EventRouter SMT
+                                                           │ EventRouter / Products SMT
                                                            ▼
                                                   ┌────────────────┐
                                                   │  Kafka         │  topic: <aggregate>.events
+                                                  │                │  topic: products  (CDC)
                                                   └────────┬───────┘
                                                            │
-                                          ┌────────────────┼─────────────────┐
-                                          ▼                ▼                 ▼
-                                       (consumer)      (consumer)        (consumer)
-                                       order-svc       stock-svc         payment-svc
+                                    ┌──────────────┬───────┴───────┬──────────────┐
+                                    ▼              ▼               ▼              ▼
+                                 (consumer)    (consumer)      (consumer)     ES Sink
+                                 order-svc     stock-svc       payment-svc    Connector
+                                                                                  │
+                                                                                  ▼
+                                                                       ┌────────────────────┐
+                                                                       │  Elasticsearch     │  ◄── product-service
+                                                                       │     :9201          │      search query
+                                                                       └────────────────────┘      (CQRS read)
 
 Asenkron iletişim: Kafka (3.8) + Debezium CDC + Outbox Pattern
 Senkron iletişim:  OpenFeign + Resilience4j (CB / Retry / Fallback)
@@ -275,7 +282,7 @@ n11bootcamp-final/                                  # Repo root (Fullstack monor
     │   └── payment-outbox-connector.json
     ├── observability/
     │   ├── alloy/config.alloy                      # Docker SD → Loki
-    │   ├── grafana/                                # datasource + dashboard provisioning
+    │   ├── grafana/                                # datasource + dashboard/alert provisioning
     │   ├── loki/loki-config.yaml
     │   ├── prometheus/prometheus.yml
     │   └── tempo/tempo.yml

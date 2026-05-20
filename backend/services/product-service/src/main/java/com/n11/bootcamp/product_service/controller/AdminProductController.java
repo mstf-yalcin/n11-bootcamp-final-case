@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,7 +42,7 @@ public class AdminProductController {
             @RequestParam(required = false) BigDecimal minRating,
             @RequestParam(required = false) String search,
             @RequestParam(required = false, defaultValue = "true") boolean includeInactive,
-            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         Page<ProductResponse> page = productService.getAdminProducts(
                 categoryId, minPrice, maxPrice, minRating, search, includeInactive, pageable);
         return ResponseEntity.ok(ApiResponse.success(page));
