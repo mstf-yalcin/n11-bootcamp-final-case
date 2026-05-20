@@ -253,6 +253,7 @@ n11bootcamp-final/                                  # Repo root (Fullstack monor
 │   │       ├── event/                              # OutboxEventBase, payload records (saf business)
 │   │       ├── exception/                          # BaseException, GlobalExceptionHandler
 │   │       ├── filter/                             # CorrelationIdFilter
+│   │       ├── idempotency/                        # @Idempotent + AOP aspect + Redis SETNX (L1 — Client/HTTP)
 │   │       ├── logging/                            # LoggingAspect (@RestController around)
 │   │       ├── response/                           # ApiResponse<T>
 │   │       ├── enums/                              # EventType, AggregateType, OrderStatus, CancelReason
@@ -290,6 +291,9 @@ n11bootcamp-final/                                  # Repo root (Fullstack monor
         ├── build-images.sh                         # Lokal Jib build
         ├── deploy-vm.sh                            # VM compose pull + up
         └── gcp-bootstrap.sh                        # GCP/GAR/VM/WIF tek seferlik kurulum
+
+scripts/                                            # Dev/test/verification scripts (deploy ops dışı)
+└── test-idempotency.sh                             # Idempotency test (3 senaryo: same-key, diff-key, race)
 ```
 
 ---
@@ -394,15 +398,59 @@ stock-service consumer (ORDER_CANCELLED):
      UPDATE stock_reservation SET status=RELEASED + UPDATE stocks SET reserved -= qty
 ```
 
-### 7.6 Idempotent Consumer
+### 7.6 Idempotency — 3 Layers
 
-Kafka **at-least-once** delivery sağlar. Her consumer:
+Sistemde her boundary'de idempotency garantisi var.
 
-- Aynı `orderId` için duplicate event geldiğinde no-op davranır (örn. `existsByOrderId`).
-- Status-bazlı sorgu doğal idempotency sağlar (`findByStatus = PENDING`).
+```
+Frontend → Backend HTTP        ← L1: Client / HTTP        (Idempotency-Key + Redis SETNX)
+            │
+            ▼
+       DB write + outbox        ← L2: Producer            (Outbox pattern)
+            │
+       Debezium WAL → Kafka
+            │
+            ▼
+       Consumer service         ← L3: Consumer            (Domain-based)
+```
+
+**L1 — Client / HTTP** (`@Idempotent` + Redis SETNX)
+Frontend checkout mount'unda UUID üretir, `Idempotency-Key` header ile gönderir. Backend'de common-lib'deki `@Idempotent` annotation + AOP aspect cache'i kontrol eder.
+
+```java
+// order-service/OrderController
+@PostMapping
+@Idempotent
+public ResponseEntity<ApiResponse<OrderResponse>> createOrder(...) { ... }
+```
+
+- Aynı key 2x → cache hit, aynı orderId
+- Farklı key → yeni sipariş
+- 5 paralel aynı key → SETNX atomic, tek sipariş (smoke test ile doğrulandı)
+- Header yok → backwards compatible, aspect bypass
+
+**L2 — Producer** (Outbox Pattern)
+Application doğrudan Kafka producer kullanmaz; DB transaction'ı outbox satırıyla atomik. Debezium WAL'i okuyup Kafka'ya basar (offset tracking + idempotent producer).
+
+**L3 — Consumer** (Domain-based)
+Kafka at-least-once delivery'sine karşı `existsByOrderId`, status transition gibi doğal idempotency ile kontrol eder.
+
+```java
+// stock-service/StockService.reserveStock
+if (reservationRepository.existsByOrderId(order.orderId())) {
+    return;  // duplicate event → no-op
+}
+```
+
 - 3 kez retry'dan sonra:
   - **Business event** → compensation event yayınlar (`STOCK_FAILED` gibi)
   - **Compensation event** → DLT topic'e yazar (`*.DLT`)
+
+**Idempotency test:**
+```bash
+bash scripts/test-idempotency.sh
+```
+3 senaryo: same-key dedup, different-key isolation, 5 paralel race condition. PASS/FAIL output.
 
 ---
 

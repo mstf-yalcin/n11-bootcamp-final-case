@@ -486,6 +486,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       config-server:
         condition: service_healthy
       discovery-server:
@@ -496,6 +498,10 @@ services:
         condition: service_healthy
       cart-service:
         condition: service_healthy
+    environment:
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-pass123}
     ports:
       - "9400:9400"
     healthcheck:
@@ -523,7 +529,7 @@ services:
       user-service:
         condition: service_healthy
     environment:
-      PAYMENT_MODE: ${PAYMENT_MODE:-sandbox}
+      PAYMENT_MODE: ${PAYMENT_MODE:-mock}
       IYZICO_API_KEY: ${IYZICO_API_KEY:-your-iyzico-api-key}
       IYZICO_SECRET_KEY: ${IYZICO_SECRET_KEY:-your-iyzico-secret-key}
       IYZICO_BASE_URL: ${IYZICO_BASE_URL:-https://sandbox-api.iyzipay.com}

@@ -126,10 +126,12 @@ export const addressApi = {
     api.delete<ApiResponse<void>>(`${API_BASE}/users/me/addresses/${id}`),
 };
 
-//  Orders 
+//  Orders
 export const orderApi = {
-  create: (body: CreateOrderRequest) =>
-    api.post<ApiResponse<Order>>(`${API_BASE}/orders`, body).then(unwrap),
+  create: (body: CreateOrderRequest, idempotencyKey?: string) =>
+    api
+      .post<ApiResponse<Order>>(`${API_BASE}/orders`, body, { idempotencyKey })
+      .then(unwrap),
   list: (page = 0, size = 20) =>
     api
       .get<ApiResponse<Order[]>>(`${API_BASE}/orders`, { params: { page, size } })

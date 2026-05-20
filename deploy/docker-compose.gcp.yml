@@ -42,3 +42,7 @@ services:
   frontend:
     image: ${IMAGE_REPO}/frontend:${IMAGE_TAG:-latest}
     build: !reset null
+
+  debezium-connect:
+    image: ${IMAGE_REPO}/debezium-connect:${IMAGE_TAG:-latest}
+    build: !reset null

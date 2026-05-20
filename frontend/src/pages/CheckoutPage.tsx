@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -19,7 +19,7 @@ import {
 import { AddressForm } from "@/features/checkout/AddressForm";
 import { useCart } from "@/features/cart/queries";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import { formatTRY, formatTrPhone } from "@/lib/utils";
+import { formatTRY, formatTrPhone, generateUUID } from "@/lib/utils";
 import type { Address, CreateAddressRequest } from "@/types/api";
 
 export default function CheckoutPage() {
@@ -38,6 +38,8 @@ export default function CheckoutPage() {
   const [identityNumber, setIdentityNumber] = useState("");
   const [identityError, setIdentityError] = useState<string | null>(null);
   const [openNewAddress, setOpenNewAddress] = useState(false);
+
+  const idempotencyKey = useMemo(() => generateUUID(), []);
 
   useEffect(() => {
     const list = addressesQuery.data;
@@ -61,10 +63,13 @@ export default function CheckoutPage() {
   const createOrderMutation = useMutation({
     mutationFn: () => {
       if (!selectedAddressId) throw new Error("Adres seçilmedi");
-      return orderApi.create({
-        addressId: selectedAddressId,
-        identityNumber,
-      });
+      return orderApi.create(
+        {
+          addressId: selectedAddressId,
+          identityNumber,
+        },
+        idempotencyKey
+      );
     },
     onSuccess: (order) => {
       queryClient.invalidateQueries({ queryKey: ["cart"] });

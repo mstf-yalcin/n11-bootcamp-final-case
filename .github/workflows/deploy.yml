@@ -71,6 +71,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build & push debezium-connect image
+        uses: docker/build-push-action@v5
+        with:
+          context: deploy/debezium
+          push: true
+          tags: |
+            ${{ steps.repo.outputs.repo }}/debezium-connect:${{ steps.tag.outputs.tag }}
+            ${{ steps.repo.outputs.repo }}/debezium-connect:latest
+          cache-from: type=gha,scope=debezium
+          cache-to: type=gha,scope=debezium,mode=max
+
   deploy:
     name: Deploy to GCE VM
     needs: build-push

@@ -12,6 +12,12 @@ spring:
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:pass123}
     driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:pass123}
+      timeout: 2000ms
   jpa:
     hibernate:
       ddl-auto: validate

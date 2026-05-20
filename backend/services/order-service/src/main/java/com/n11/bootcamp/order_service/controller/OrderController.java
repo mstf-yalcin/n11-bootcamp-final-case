@@ -2,6 +2,7 @@ package com.n11.bootcamp.order_service.controller;
 
 import com.n11.bootcamp.common_lib.auth.UserPrincipal;
 import com.n11.bootcamp.common_lib.dto.response.ApiResponse;
+import com.n11.bootcamp.common_lib.idempotency.Idempotent;
 import com.n11.bootcamp.order_service.dto.request.CreateOrderRequest;
 import com.n11.bootcamp.order_service.dto.response.OrderResponse;
 import com.n11.bootcamp.order_service.service.OrderService;
@@ -39,6 +40,7 @@ public class OrderController {
     }
 
     @PostMapping
+    @Idempotent
     @Operation(summary = "Create a new order from the user's cart (saga starts: ORDER_CREATED -> stock -> payment -> confirm)")
     public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
             @AuthenticationPrincipal UserPrincipal principal,

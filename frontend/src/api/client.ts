@@ -3,6 +3,12 @@ import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 import type { ApiResponse, AuthTokens } from "@/types/api";
 
+declare module "axios" {
+  export interface AxiosRequestConfig {
+    idempotencyKey?: string;
+  }
+}
+
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 
 /** Backend API path prefix. v2'ye geçilirse tek yerden değişir. */
@@ -22,6 +28,10 @@ const NO_AUTH_PATHS = [
 ];
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  if (config.idempotencyKey && config.headers) {
+    config.headers["Idempotency-Key"] = config.idempotencyKey;
+  }
+
   const url = config.url ?? "";
   const isAuthBootstrap = NO_AUTH_PATHS.some((p) => url.includes(p));
   if (isAuthBootstrap) return config;
@@ -135,6 +145,7 @@ const ERROR_CODE_MESSAGES: Record<string, string> = {
   // Generic / cross-cutting
   VALIDATION_ERROR: "Form bilgileri geçerli değil.",
   DUPLICATE_ENTRY: "Bu kayıt zaten mevcut.",
+  IDEMPOTENCY_IN_PROGRESS: "Aynı istek hâlâ işleniyor, lütfen birkaç saniye sonra tekrar dene.",
   NOT_FOUND: "Aradığın şey bulunamadı.",
   MALFORMED_REQUEST: "Geçersiz istek formatı.",
   INTERNAL_ERROR: "Sunucu hatası, lütfen tekrar dene.",
