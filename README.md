@@ -2,11 +2,18 @@
 
 > Saga choreography, Outbox + Debezium CDC, Kafka, OAuth2 (RS256 + JWKS), observability ve GCP üzerinde GitHub Actions ile  deploy edilen bir e-ticaret mikroservis projesi.
 
-- **Stack:** Java 21, Spring Boot 3.5, Spring Cloud, PostgreSQL, Redis, Kafka, Debezium, React 19, Vite, Tailwind
+- **Stack:** Java 21, Spring Boot 3.5, Spring Cloud, PostgreSQL, Elasticsearch, Redis, Kafka, Debezium, React 19, Vite, Tailwind
 - **Mimari:** 6 iş servisi + 3 platform servisi + Kafka/CDC + observability (Prometheus, Tempo, Loki, Grafana, Alloy)
 - **Deployment:** Docker Compose (local + GCE VM), GitHub Actions + Workload Identity Federation + Artifact Registry
 
 ---
+
+**Demo:** [http:34.62.90.83](http:34.62.90.83)
+
+| Rol | Email | Şifre |
+|---|---|---|
+| User | test@test.com | test123 |
+| Admin | admin@test.com | admin123 |
 
 ## 1. Ekran Görüntüleri
 
@@ -45,6 +52,20 @@
 ![Auth](screenshots/admin3.png)
 ![Auth](screenshots/admin4.png)
 ![Auth](screenshots/admin5.png)
+
+### 1.10 Grafana / Dashboard'lar
+![Grafana](screenshots/grafana/grafana-dashboard-1.png)
+![Grafana](screenshots/grafana/grafana-dashboard-2.png)
+
+### 1.11 Grafana / Alerting
+![Grafana](screenshots/grafana/grafana-alert.png)
+
+### 1.12 Kafka UI
+![Kafka UI](screenshots/kafkaui1.png)
+![Kafka UI](screenshots/kafkaui2.png)
+
+### 1.13 Kibana
+![Kibana](screenshots/elastic-kibana.png)
 
 ---
 
@@ -629,11 +650,17 @@ open http://localhost:5601
 - **Docker Desktop** 
 - `curl`, `jq` 
 
-### 10.2 Tek Komutla Tam Stack
+### 10.2 Lokal Çalıştırma
 
 ```bash
 # Repo root'tan
-cd deploy
+# (Opsiyonel) Env override'ları için
+cp deploy/.env.example deploy/.env
+
+cd backend
+mvn clean install -DskipTests jib:dockerBuild
+
+cd ../deploy
 docker compose up -d
 
 docker compose ps
@@ -651,7 +678,7 @@ Servisler ayağa kalktıktan sonra:
 | `http://localhost:5601` | Kibana (Elasticsearch UI) |
 | `http://localhost:3000` | Grafana (admin/admin) |
 | `http://localhost:9090` | Prometheus |
-| `http://localhost:5173` | Frontend (lokal `npm run dev`) |
+| `http://localhost` | Frontend |
 
 ### 10.3 Sadece Frontend
 
